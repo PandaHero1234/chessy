@@ -498,7 +498,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   // ------------------------------------------------------------ Web-Frontend
   const webDist = opts.webDist === undefined ? join(here, "../../web/dist") : opts.webDist;
   if (webDist && existsSync(webDist)) {
-    await app.register(fastifyStatic, { root: webDist, wildcard: false });
+    await app.register(fastifyStatic, { root: webDist });
     app.setNotFoundHandler((req, reply) => {
       if (req.url.startsWith("/api/")) return reply.code(404).send({ error: "not_found", message: "Unbekannter Endpunkt" });
       return reply.sendFile("index.html");
