@@ -1,0 +1,32 @@
+{
+  "name": "chessy",
+  "private": true,
+  "version": "0.1.0",
+  "description": "API-first Schachplattform: Zeitmodi, Computer- und Online-Gegner, offene Board-API",
+  "license": "GPL-3.0-or-later",
+  "type": "module",
+  "workspaces": [
+    "packages/shared",
+    "packages/board-adapters",
+    "apps/server",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @chessy/server & npm run dev -w @chessy/web",
+    "dev:server": "npm run dev -w @chessy/server",
+    "dev:web": "npm run dev -w @chessy/web",
+    "build": "npm run build -w @chessy/web",
+    "start": "npm run start -w @chessy/server",
+    "test": "NODE_OPTIONS=--disable-warning=ExperimentalWarning vitest run",
+    "typecheck": "tsc -p packages/shared && tsc -p apps/server && tsc -p packages/board-adapters && tsc -p apps/web",
+    "openapi": "npm run openapi -w @chessy/server",
+    "board": "npm run board -w @chessy/board-adapters --",
+    "bot:random": "tsx examples/random-bot.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.20.0",
+    "typescript": "~5.9.3",
+    "vitest": "^3.2.4"
+  }
+}
