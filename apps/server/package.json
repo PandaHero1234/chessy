@@ -1,0 +1,22 @@
+{
+  "name": "@chessy/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx watch src/main.ts",
+    "start": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx src/main.ts",
+    "openapi": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx src/scripts/exportOpenApi.ts"
+  },
+  "dependencies": {
+    "@chessy/shared": "0.1.0",
+    "@fastify/cors": "^11.3.1",
+    "@fastify/static": "^10.1.8",
+    "@fastify/swagger": "^9.9.2",
+    "@fastify/swagger-ui": "^6.1.2",
+    "@fastify/websocket": "^11.3.4",
+    "chess.js": "^1.4.0",
+    "fastify": "^5.12.7",
+    "stockfish": "^19.0.1"
+  }
+}

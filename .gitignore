@@ -1,0 +1,9 @@
+node_modules/
+dist/
+data/
+*.db
+*.db-journal
+.vite/
+test-results/
+screenshots/
+apps/web/public/engine/
