@@ -5,6 +5,7 @@ import { TimeControlPicker } from "../components/TimeControlPicker.tsx";
 import { Board } from "../components/Board.tsx";
 import { api } from "../lib/api.ts";
 import { navigate, onLinkClick } from "../lib/router.ts";
+import { STATIC, href, pieceUrl } from "../lib/paths.ts";
 import { useAccount, useToast } from "../App.tsx";
 
 type Mode = "ai" | "online" | "friend" | "local";
@@ -68,10 +69,10 @@ export function Home() {
             Bullet bis Daily, gegen Stockfish oder echte Gegner. Die offene API verbindet auch Bots, andere Apps und elektronische Bretter.
           </p>
           <div className="hero-links">
-            <a href="/developers" onClick={onLinkClick} className="btn ghost">
+            <a href={href("/developers")} onClick={onLinkClick} className="btn ghost">
               ⌘ API &amp; Boards verbinden
             </a>
-            <a href="/chesscom" onClick={onLinkClick} className="btn ghost">
+            <a href={href("/chesscom")} onClick={onLinkClick} className="btn ghost">
               ♞ chess.com-Profil laden
             </a>
           </div>
@@ -84,13 +85,22 @@ export function Home() {
       <section className="glass card new-game">
         <h2>Neue Partie</h2>
         <div className="mode-grid">
-          {MODES.map((m) => (
-            <button key={m.id} className={`mode-card ${mode === m.id ? "active" : ""}`} onClick={() => setMode(m.id)}>
-              <span className="mode-icon">{m.icon}</span>
-              <span className="mode-title">{m.title}</span>
-              <span className="mode-text">{m.text}</span>
-            </button>
-          ))}
+          {MODES.map((m) => {
+            const needsServer = STATIC && (m.id === "online" || m.id === "friend");
+            return (
+              <button
+                key={m.id}
+                className={`mode-card ${mode === m.id ? "active" : ""}`}
+                onClick={() => setMode(m.id)}
+                disabled={needsServer}
+                title={needsServer ? "Benötigt den Chessy-Server (npm start)" : undefined}
+              >
+                <span className="mode-icon">{m.icon}</span>
+                <span className="mode-title">{m.title}</span>
+                <span className="mode-text">{needsServer ? "Nur mit Server" : m.text}</span>
+              </button>
+            );
+          })}
         </div>
 
         <div className="new-game-grid">
@@ -128,7 +138,7 @@ export function Home() {
                       {c === "random" ? (
                         <span className="color-dot half" />
                       ) : (
-                        <img src={`/pieces/cburnett/${c === "white" ? "w" : "b"}K.svg`} alt="" />
+                        <img src={pieceUrl(c === "white" ? "wK" : "bK")} alt="" />
                       )}
                       {c === "white" ? "Weiß" : c === "black" ? "Schwarz" : "Zufall"}
                     </button>
@@ -166,7 +176,7 @@ export function GameRow({ g, me }: { g: GameSnapshot; me?: string }) {
   const outcome =
     g.status === "started" ? "läuft" : g.status === "waiting" ? "wartet" : g.status === "aborted" ? "abgebr." : !g.winner ? "½–½" : myColor && g.source === "live" ? (g.winner === myColor ? "Sieg" : "Niederlage") : g.result;
   return (
-    <a className="game-row" href={`/game/${g.id}`} onClick={onLinkClick}>
+    <a className="game-row" href={href(`/game/${g.id}`)} onClick={onLinkClick}>
       <span className={`dot ${g.status}`} />
       <span className="gr-players">
         {g.white.username} <span className="muted">vs</span> {g.black.username}

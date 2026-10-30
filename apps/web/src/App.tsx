@@ -2,7 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import type { Account, AccountEvent } from "@chessy/shared";
 import { ensureAccount } from "./lib/api.ts";
 import { live } from "./lib/live.ts";
-import { navigate, onLinkClick, usePath } from "./lib/router.ts";
+import { currentPath, navigate, onLinkClick, usePath } from "./lib/router.ts";
+import { STATIC, href, pieceUrl } from "./lib/paths.ts";
 import { Home } from "./pages/Home.tsx";
 import { GamePage } from "./pages/GamePage.tsx";
 import { Lobby } from "./pages/Lobby.tsx";
@@ -44,7 +45,7 @@ export function App() {
         setAccount(a);
         live.connect();
       },
-      () => setError("Server nicht erreichbar. Läuft `npm run dev:server`?"),
+      () => setError(STATIC ? "Die Demo konnte nicht gestartet werden." : "Server nicht erreichbar. Läuft `npm run dev:server`?"),
     );
     return live.onStatus(setOnline);
   }, []);
@@ -54,8 +55,8 @@ export function App() {
     () =>
       live.on("user", (msg) => {
         const e = msg as unknown as AccountEvent;
-        if (e.type === "gameStart" && !location.pathname.startsWith(`/game/${e.game.id}`)) {
-          if (location.pathname === "/lobby" || location.pathname === "/") navigate(`/game/${e.game.id}`);
+        if (e.type === "gameStart" && !currentPath().startsWith(`/game/${e.game.id}`)) {
+          if (currentPath() === "/lobby" || currentPath() === "/") navigate(`/game/${e.game.id}`);
           else toast(`Partie gegen ${e.game.opponent} gestartet`);
         }
       }),
@@ -76,13 +77,13 @@ export function App() {
       <SetAccountCtx.Provider value={setAccount}>
         <ToastCtx.Provider value={toast}>
           <header className="topbar">
-            <a href="/" onClick={onLinkClick} className="logo">
-              <img src="/pieces/cburnett/wN.svg" alt="" />
+            <a href={href("/")} onClick={onLinkClick} className="logo">
+              <img src={pieceUrl("wN")} alt="" />
               <span>Chessy</span>
             </a>
             <nav>
-              {NAV.map(([href, label]) => (
-                <a key={href} href={href} onClick={onLinkClick} className={(href === "/" ? path === "/" : path.startsWith(href)) ? "active" : ""}>
+              {NAV.map(([to, label]) => (
+                <a key={to} href={href(to)} onClick={onLinkClick} className={(to === "/" ? path === "/" : path.startsWith(to)) ? "active" : ""}>
                   {label}
                 </a>
               ))}
@@ -94,7 +95,8 @@ export function App() {
           </header>
           <main>{error ? <div className="page narrow center error-box">{error}</div> : page}</main>
           <footer className="footer muted small">
-            Chessy · Engine: Stockfish (GPLv3) · Figuren: Colin M.L. Burnett (GPLv2+) · <a href="/docs">API-Doku</a>
+            Chessy · Engine: Stockfish (GPLv3) · Figuren: Colin M.L. Burnett (GPLv2+) ·{" "}
+            {STATIC ? <a href="https://github.com/PandaHero1234/chessy">Quellcode</a> : <a href="/docs">API-Doku</a>}
           </footer>
           <div className="toasts">
             {toasts.map((t) => (

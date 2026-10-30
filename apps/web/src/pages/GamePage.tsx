@@ -11,6 +11,7 @@ import { api, ApiError } from "../lib/api.ts";
 import { live } from "../lib/live.ts";
 import { play } from "../lib/sound.ts";
 import { navigate } from "../lib/router.ts";
+import { pieceUrl } from "../lib/paths.ts";
 import { useAccount, useToast } from "../App.tsx";
 
 const PIECE_VALUE: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
@@ -261,7 +262,7 @@ export function GamePage({ id }: { id: string }) {
           </div>
           <div className="captured">
             {caps.map((code, i) => (
-              <img key={i} src={`/pieces/cburnett/${code}.svg`} alt="" />
+              <img key={i} src={pieceUrl(code)} alt="" />
             ))}
             {adv > 0 && <span className="adv">+{adv}</span>}
           </div>
@@ -429,9 +430,9 @@ export function GamePage({ id }: { id: string }) {
                   ↻ Neue Partie
                 </button>
               )}
-              <a className="btn ghost" href={`/api/v1/games/${game.id}/pgn`} download={`chessy-${game.id}.pgn`}>
+              <button className="btn ghost" onClick={() => downloadPgn(game)}>
                 ⤓ PGN
-              </a>
+              </button>
               <button className="btn ghost" onClick={() => (navigator.clipboard?.writeText(game.pgn), toast("PGN kopiert"))}>
                 ⧉ Kopieren
               </button>
@@ -483,6 +484,15 @@ export function GamePage({ id }: { id: string }) {
     if (myColor) return { title: g.winner === myColor ? "Du hast gewonnen!" : "Du hast verloren", sub: `${name} gewinnt ${how}` };
     return { title: `${g.winner === "white" ? "Weiß" : "Schwarz"} gewinnt`, sub: `${name} gewinnt ${how}` };
   }
+}
+
+function downloadPgn(game: GameSnapshot) {
+  const url = URL.createObjectURL(new Blob([game.pgn], { type: "application/x-chess-pgn" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `chessy-${game.id}.pgn`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function stateToSnapshot(e: Extract<GameStreamEvent, { type: "gameState" }>): Partial<GameSnapshot> {

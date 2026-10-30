@@ -1,4 +1,6 @@
 import type { Account, AnalysisResult, GameSnapshot, Seek, TimeControl } from "@chessy/shared";
+import { STATIC } from "./paths.ts";
+import { ensureLocalAccount, localApi, renameLocal } from "./localBackend.ts";
 
 const BASE = "/api/v1";
 const TOKEN_KEY = "chessy.token";
@@ -46,6 +48,7 @@ async function request<T>(method: string, path: string, body?: unknown, auth = t
 
 /** Stellt sicher, dass ein Gast-Account existiert (Token im Browser gespeichert). */
 export async function ensureAccount(): Promise<Account> {
+  if (STATIC) return ensureLocalAccount();
   if (getToken()) {
     try {
       return await request<Account>("GET", "/account");
@@ -59,6 +62,7 @@ export async function ensureAccount(): Promise<Account> {
 }
 
 export async function renameByNewGuest(username: string): Promise<Account> {
+  if (STATIC) return renameLocal(username);
   const r = await request<{ account: Account; token: string }>("POST", "/auth/guest", { username }, false);
   storage.set(TOKEN_KEY, r.token);
   return r.account;
@@ -66,7 +70,7 @@ export async function renameByNewGuest(username: string): Promise<Account> {
 
 export type OpponentInput = { type: "ai"; level: number } | { type: "local" } | { type: "friend" };
 
-export const api = {
+const remoteApi = {
   createGame: (opponent: OpponentInput, time_control: string | TimeControl, color: "white" | "black" | "random") =>
     request<GameSnapshot>("POST", "/games", { opponent, time_control, color }),
   game: (id: string) => request<GameSnapshot>("GET", `/games/${id}`),
@@ -93,6 +97,11 @@ export const api = {
     month: (u: string, y: string, m: string) => request<{ games: ChessComGame[] }>("GET", `/chesscom/player/${u}/games/${y}/${m}`, undefined, false),
   },
 };
+
+export type Api = typeof remoteApi;
+
+/** Mit Server: REST-API. Statische Demo: dieselbe Spiellogik im Browser. */
+export const api: Api = STATIC ? localApi : remoteApi;
 
 export interface ChessComPlayer {
   username: string;

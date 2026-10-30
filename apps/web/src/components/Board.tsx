@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Color } from "@chessy/shared";
 import { BOARD_THEMES, useSettings } from "../lib/settings.ts";
+import { pieceUrl } from "../lib/paths.ts";
 
 type PieceCode = `${"w" | "b"}${"K" | "Q" | "R" | "B" | "N" | "P"}`;
 interface PlacedPiece {
@@ -258,7 +259,7 @@ export function Board({ fen, orientation, lastMove, check, movable, dests, onMov
                 transform: `translate(${col * 100}%, ${row * 100}%)`,
                 transition: !animate || instantId === p.id ? "none" : undefined,
               };
-          return <div key={p.id} className={`piece ${p.code}`} style={{ ...style, backgroundImage: `url(/pieces/cburnett/${p.code}.svg)` }} />;
+          return <div key={p.id} className={`piece ${p.code}`} style={{ ...style, backgroundImage: `url(${pieceUrl(p.code)})` }} />;
         })}
       </div>
       <svg className="arrows" viewBox="0 0 8 8">
@@ -304,7 +305,7 @@ export function Board({ fen, orientation, lastMove, check, movable, dests, onMov
               <button
                 key={k}
                 className="promo-piece"
-                style={{ backgroundImage: `url(/pieces/cburnett/${promo.color}${k.toUpperCase()}.svg)` }}
+                style={{ backgroundImage: `url(${pieceUrl(promo.color + k.toUpperCase())})` }}
                 onPointerDown={(e) => {
                   e.stopPropagation();
                   onMove?.(promo.from, promo.to, k);

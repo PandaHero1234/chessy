@@ -6,3 +6,4 @@ data/
 .vite/
 test-results/
 screenshots/
+apps/web/public/engine/

@@ -1,5 +1,11 @@
 import { getToken } from "./api.ts";
 
+/** Event-Quelle der statischen Demo (der GameService im Browser). */
+interface LocalEvents {
+  on(event: string, fn: (payload: never) => void): void;
+  off(event: string, fn: (payload: never) => void): void;
+}
+
 type Listener = (msg: Record<string, unknown> & { type: string }) => void;
 
 /**
@@ -17,9 +23,16 @@ class LiveConnection {
   rtt = 0;
   private statusListeners = new Set<(online: boolean) => void>();
   online = false;
+  private local: { events: LocalEvents; userId: string } | null = null;
+
+  /** Statische Demo: Events kommen direkt vom GameService im Browser statt per WebSocket. */
+  useLocal(events: LocalEvents, userId: string) {
+    this.local = { events, userId };
+    this.setOnline(true);
+  }
 
   connect() {
-    if (this.ws) return;
+    if (this.ws || this.local) return;
     const proto = location.protocol === "https:" ? "wss" : "ws";
     const ws = new WebSocket(`${proto}://${location.host}/api/v1/ws?token=${encodeURIComponent(getToken() ?? "")}`);
     this.ws = ws;
@@ -74,12 +87,20 @@ class LiveConnection {
   }
 
   on(channel: string, fn: Listener) {
+    if (this.local) {
+      const { events, userId } = this.local;
+      const name = channel === "user" ? `user:${userId}` : channel;
+      const wrapped = (e: object) => fn({ channel, ...(e as { type: string }) });
+      events.on(name, wrapped as (p: never) => void);
+      return () => events.off(name, wrapped as (p: never) => void);
+    }
     if (!this.listeners.has(channel)) this.listeners.set(channel, new Set());
     this.listeners.get(channel)!.add(fn);
     return () => void this.listeners.get(channel)?.delete(fn);
   }
 
   subscribeGame(id: string, fn: Listener) {
+    if (this.local) return this.on(`game:${id}`, fn);
     const off = this.on(`game:${id}`, fn);
     const n = this.games.get(id) ?? 0;
     this.games.set(id, n + 1);
@@ -95,6 +116,7 @@ class LiveConnection {
   }
 
   subscribeLobby(fn: Listener) {
+    if (this.local) return this.on("lobby", fn);
     const off = this.on("lobby", fn);
     this.lobby++;
     if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify({ type: "lobby" }));

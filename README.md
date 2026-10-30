@@ -7,6 +7,10 @@ Das Web-Frontend ist nur *ein* Client der öffentlichen API. Bots, andere Apps u
 - **Echtzeit** im Stil der [Lichess Board API](https://lichess.org/api#tag/Board): NDJSON-Streams (`gameFull` / `gameState` / `chatLine`) und Züge per `POST …/move/e2e4`. Dieselben Events gibt es auch per WebSocket.
 - **chess.com-Anbindung:** Profile, Ratings und Monatsarchive über einen Proxy laden und als nachspielbare Partie importieren. Die chess.com-API ist nur lesend; gespielt wird deshalb auf dem eigenen Server.
 
+**▶ Demo im Browser: https://pandahero1234.github.io/chessy/**
+Die Demo läuft ohne Server: Gegen Computer, lokal zu zweit, Analyse und chess.com-Import gehen dort. Der `GameService`
+und Stockfish (WASM) laufen dafür im Browser. Online-Lobby, Einladungslinks und die Bot/Board-API brauchen den Server (siehe unten).
+
 ## Schnellstart
 
 ```bash
@@ -113,6 +117,11 @@ npm run typecheck
 node e2e/smoke.cjs    # Playwright: Partie gegen Computer, Screenshots (Server muss laufen)
 node e2e/online.cjs   # Playwright: zwei Browser spielen online + Lobby-Paarung
 ```
+
+## GitHub Pages
+
+`.github/workflows/pages.yml` baut bei jedem Push auf `main` die statische Demo (`npm run build:pages`) und veröffentlicht sie.
+Einmalig nötig: *Settings → Pages → Source: GitHub Actions*.
 
 ## Konfiguration
 

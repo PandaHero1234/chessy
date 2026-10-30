@@ -16,6 +16,7 @@
     "dev:server": "npm run dev -w @chessy/server",
     "dev:web": "npm run dev -w @chessy/web",
     "build": "npm run build -w @chessy/web",
+    "build:pages": "VITE_STATIC=1 VITE_BASE=/chessy/ npm run build -w @chessy/web",
     "start": "npm run start -w @chessy/server",
     "test": "NODE_OPTIONS=--disable-warning=ExperimentalWarning vitest run",
     "typecheck": "tsc -p packages/shared && tsc -p apps/server && tsc -p packages/board-adapters && tsc -p apps/web && tsc -p examples",

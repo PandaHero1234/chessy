@@ -5,9 +5,16 @@ import { TimeControlPicker } from "../components/TimeControlPicker.tsx";
 import { api } from "../lib/api.ts";
 import { live } from "../lib/live.ts";
 import { navigate } from "../lib/router.ts";
+import { STATIC } from "../lib/paths.ts";
+import { ServerOnly } from "../components/ServerOnly.tsx";
 import { useAccount, useToast } from "../App.tsx";
 
 export function Lobby() {
+  if (STATIC) return <ServerOnly title="Online-Lobby" />;
+  return <LiveLobby />;
+}
+
+function LiveLobby() {
   const account = useAccount();
   const toast = useToast();
   const [seeks, setSeeks] = useState<Seek[]>([]);

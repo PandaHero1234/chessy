@@ -1,14 +1,13 @@
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { Account, GameSnapshot } from "@chessy/shared";
+import type { GameSnapshot } from "@chessy/shared";
+import type { GameStore, StoredUser } from "../game/ports.ts";
 
-export interface StoredUser extends Account {
-  token: string;
-}
+export type { StoredUser };
 
 /** Persistenz in SQLite (eingebautes `node:sqlite`, keine nativen Abhängigkeiten). */
-export class Store {
+export class Store implements GameStore {
   private db: DatabaseSync;
 
   constructor(path = ":memory:") {

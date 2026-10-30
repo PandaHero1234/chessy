@@ -1436,3 +1436,9 @@ main {
     padding-right: 16px;
   }
 }
+
+.mode-card:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}

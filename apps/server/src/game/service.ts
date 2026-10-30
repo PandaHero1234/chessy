@@ -1,5 +1,3 @@
-import { EventEmitter } from "node:events";
-import { randomBytes } from "node:crypto";
 import { Chess, DEFAULT_POSITION } from "chess.js";
 import {
   type AccountEvent,
@@ -18,8 +16,7 @@ import {
 } from "@chessy/shared";
 import { Game, MoveRejected, parseMoveInput } from "./game.ts";
 import { Clock } from "./clock.ts";
-import type { Engine } from "../ai/stockfish.ts";
-import type { Store, StoredUser } from "../db/store.ts";
+import { Emitter, randomString, type Engine, type GameStore, type StoredUser } from "./ports.ts";
 
 export class ApiError extends Error {
   constructor(readonly statusCode: number, readonly code: string, message: string) {
@@ -39,40 +36,39 @@ export interface CreateGameInput {
 /** Nach so vielen ms ohne ersten Zug wird eine Online-Partie abgebrochen. */
 const FIRST_MOVE_TIMEOUT_MS = 60_000;
 
-export const newId = (bytes = 6) => randomBytes(bytes).toString("base64url");
+export const newId = (bytes = 6) => randomString(bytes);
 
 /**
  * Zentrale Spiellogik + Event-Bus. Transporte (REST, NDJSON, WebSocket) hängen sich nur an die Events.
  * Event-Namen: `game:<id>` → GameStreamEvent, `user:<id>` → AccountEvent.
  */
 export class GameService {
-  readonly events = new EventEmitter();
+  readonly events = new Emitter();
   private games = new Map<string, Game>();
   private chats = new Map<string, ChatLine[]>();
   private seeks = new Map<string, Seek>();
-  private timers = new Map<string, NodeJS.Timeout>();
+  private timers = new Map<string, ReturnType<typeof setTimeout>>();
   private aiThinking = new Set<string>();
 
   constructor(
-    private readonly store: Store,
+    private readonly store: GameStore,
     private readonly engine: Engine,
     private readonly now: () => number = Date.now,
   ) {
-    this.events.setMaxListeners(0);
     for (const snap of store.activeGames()) this.restore(snap);
   }
 
   // ---------------------------------------------------------------- Accounts
 
   createAccount(kind: StoredUser["kind"], requestedName?: string): StoredUser {
-    let username = sanitizeName(requestedName) ?? `${kind === "guest" ? "Gast" : kind === "bot" ? "Bot" : "Board"}-${randomBytes(2).toString("hex")}`;
+    let username = sanitizeName(requestedName) ?? `${kind === "guest" ? "Gast" : kind === "bot" ? "Bot" : "Board"}-${randomString(2, "hex")}`;
     if (kind === "bot" && !username.toLowerCase().includes("bot")) username = `${username}-BOT`;
-    while (this.store.usernameTaken(username)) username = `${username.replace(/-\w{4}$/, "")}-${randomBytes(2).toString("hex")}`;
+    while (this.store.usernameTaken(username)) username = `${username.replace(/-\w{4}$/, "")}-${randomString(2, "hex")}`;
     const user: StoredUser = {
       id: newId(8),
       username,
       kind,
-      token: `chy_${randomBytes(24).toString("base64url")}`,
+      token: `chy_${randomString(24)}`,
       created_at: this.now(),
     };
     this.store.createUser(user);
@@ -400,7 +396,7 @@ export class GameService {
         if (p.id && p.kind !== "ai") this.emitUser(p.id, { type: "gameFinish", game: { id: game.id, result: snap.result } });
       }
       // Beendete Partien bleiben noch kurz im Speicher (Chat, Rematch), danach nur noch in der DB.
-      setTimeout(() => this.games.get(game.id)?.isOver && this.games.delete(game.id), 10 * 60_000).unref();
+      unref(setTimeout(() => this.games.get(game.id)?.isOver && this.games.delete(game.id), 10 * 60_000));
       return;
     }
     this.schedule(game);
@@ -483,7 +479,7 @@ export class GameService {
 
   private setTimer(id: string, ms: number, fn: () => void) {
     const t = setTimeout(fn, Math.min(ms, 2 ** 31 - 1));
-    t.unref();
+    unref(t);
     this.timers.set(id, t);
   }
 
@@ -520,6 +516,11 @@ export class GameService {
     for (const t of this.timers.values()) clearTimeout(t);
     this.timers.clear();
   }
+}
+
+/** Timer sollen den Node-Prozess nicht am Beenden hindern (im Browser ein No-op). */
+function unref(t: ReturnType<typeof setTimeout>) {
+  (t as { unref?: () => void }).unref?.();
 }
 
 function toState(s: GameSnapshot): GameStreamEvent {

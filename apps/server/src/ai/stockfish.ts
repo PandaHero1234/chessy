@@ -1,6 +1,8 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createRequire } from "node:module";
-import type { AiLevel, AnalysisResult, Color } from "@chessy/shared";
+import type { AnalysisResult, Color } from "@chessy/shared";
+import type { Engine, MoveRequest } from "../game/ports.ts";
+import { AI_LEVEL_SETTINGS, aiMoveTime, aiSearchCommands, parseAnalysis } from "@chessy/shared";
 
 const require = createRequire(import.meta.url);
 const findEngine: (flavor: string) => string = require("stockfish").findEngine;
@@ -77,35 +79,10 @@ class EngineProcess {
   }
 }
 
-/**
- * Spielstärken. Stockfish "Skill Level" (0–20) plus begrenzte Suchtiefe und Bedenkzeit.
- * Stufe 1 macht bewusst grobe Fehler, Stufe 8 spielt mit voller Stärke.
- */
-export const LEVELS: Record<AiLevel, { skill: number; depth: number; movetime: number; label: string }> = {
-  1: { skill: 0, depth: 1, movetime: 50, label: "Einsteiger" },
-  2: { skill: 3, depth: 2, movetime: 100, label: "Anfänger" },
-  3: { skill: 6, depth: 3, movetime: 150, label: "Gelegenheitsspieler" },
-  4: { skill: 9, depth: 5, movetime: 200, label: "Vereinsspieler" },
-  5: { skill: 11, depth: 8, movetime: 300, label: "Fortgeschritten" },
-  6: { skill: 14, depth: 12, movetime: 500, label: "Experte" },
-  7: { skill: 17, depth: 16, movetime: 800, label: "Meister" },
-  8: { skill: 20, depth: 22, movetime: 1200, label: "Großmeister" },
-};
+export const LEVELS = AI_LEVEL_SETTINGS;
+export { parseAnalysis };
 
-export interface MoveRequest {
-  initialFen: string;
-  moves: string[];
-  level: AiLevel;
-  /** Verbleibende Zeit der KI in ms (null = unbegrenzt). */
-  timeLeft: number | null;
-  increment: number;
-}
-
-export interface Engine {
-  bestMove(req: MoveRequest): Promise<string>;
-  analyse(fen: string, depth: number): Promise<AnalysisResult>;
-  close(): void;
-}
+export type { Engine, MoveRequest };
 
 /** Kleiner Pool von Engine-Prozessen, die lazy gestartet werden. */
 export class StockfishPool implements Engine {
@@ -126,17 +103,8 @@ export class StockfishPool implements Engine {
   }
 
   async bestMove(req: MoveRequest): Promise<string> {
-    const lvl = LEVELS[req.level];
-    let movetime = lvl.movetime;
-    // Nie mehr als ~1/30 der Restzeit (+ Inkrement) verbrauchen.
-    if (req.timeLeft !== null) movetime = Math.max(20, Math.min(movetime, req.timeLeft / 30 + req.increment / 2));
-    const position = `position fen ${req.initialFen}${req.moves.length ? ` moves ${req.moves.join(" ")}` : ""}`;
-    const lines = await this.pick().run([
-      `setoption name Skill Level value ${lvl.skill}`,
-      "ucinewgame",
-      position,
-      `go depth ${lvl.depth} movetime ${Math.round(movetime)}`,
-    ]);
+    const movetime = aiMoveTime(req.level, req.timeLeft, req.increment);
+    const lines = await this.pick().run(aiSearchCommands(req.level, req.initialFen, req.moves, movetime));
     const best = /^bestmove (\S+)/.exec(lines[lines.length - 1] ?? "")?.[1];
     if (!best || best === "(none)") throw new Error("Engine hat keinen Zug gefunden");
     return best;
@@ -157,24 +125,4 @@ export class StockfishPool implements Engine {
     for (const e of this.engines) e.kill();
     this.engines = [];
   }
-}
-
-export function parseAnalysis(fen: string, lines: string[], turn: Color): AnalysisResult {
-  const sign = turn === "white" ? 1 : -1;
-  let result: AnalysisResult = { fen, depth: 0, bestmove: null, eval: { cp: 0 }, pv: [] };
-  for (const line of lines) {
-    const info = /^info .*\bdepth (\d+)\b.*\bscore (cp|mate) (-?\d+)(?:.*\bpv (.+))?/.exec(line);
-    if (info && !/\bupperbound|lowerbound\b/.test(line)) {
-      const v = Number(info[3]) * sign;
-      result = {
-        ...result,
-        depth: Number(info[1]),
-        eval: info[2] === "cp" ? { cp: v } : { mate: v },
-        pv: info[4]?.split(" ") ?? result.pv,
-      };
-    }
-    const bm = /^bestmove (\S+)/.exec(line);
-    if (bm) result.bestmove = bm[1] === "(none)" ? null : bm[1]!;
-  }
-  return result;
 }

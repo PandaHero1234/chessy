@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../lib/api.ts";
 import { useToast } from "../App.tsx";
+import { STATIC } from "../lib/paths.ts";
 
 const ENDPOINTS: [string, string, string][] = [
   ["POST", "/api/v1/auth/{guest|bot|board}", "Account anlegen, Token erhalten"],
@@ -54,12 +55,19 @@ curl -X POST ${origin}/api/v1/games/$GAME/move/e2e4 -H "authorization: Bearer $T
           Diese Oberfläche ist selbst nur ein Client der öffentlichen Chessy-API. Alles, was du hier tun kannst, können auch Bots, andere Apps und elektronische
           Schachbretter, mit denselben Endpunkten. Das Datenformat lehnt sich an die chess.com Public API an, die Echtzeit-Streams an die Lichess Board API.
         </p>
+        {STATIC && (
+          <div className="offer" style={{ marginBottom: 14 }}>
+            <span>
+              Das hier ist die Browser-Demo auf GitHub Pages: Die Spiellogik läuft lokal, die API selbst gibt es nur mit dem Server (<code>npm start</code>).
+            </span>
+          </div>
+        )}
         <div className="dev-links">
-          <a className="btn primary" href="/docs" target="_blank" rel="noreferrer">
-            📖 Interaktive API-Doku (OpenAPI)
+          <a className="btn primary" href={STATIC ? "https://github.com/PandaHero1234/chessy/blob/main/openapi.json" : "/docs"} target="_blank" rel="noreferrer">
+            📖 {STATIC ? "OpenAPI-Spezifikation" : "Interaktive API-Doku (OpenAPI)"}
           </a>
-          <a className="btn ghost" href="/docs/json" target="_blank" rel="noreferrer">
-            openapi.json
+          <a className="btn ghost" href={STATIC ? "https://github.com/PandaHero1234/chessy/blob/main/docs/connect-a-board.md" : "/docs/json"} target="_blank" rel="noreferrer">
+            {STATIC ? "Boards verbinden" : "openapi.json"}
           </a>
         </div>
       </section>
@@ -83,7 +91,7 @@ curl -X POST ${origin}/api/v1/games/$GAME/move/e2e4 -H "authorization: Bearer $T
           Erzeuge ein Token für einen Bot oder ein elektronisches Brett. Mit dem Board-Adapter (<code>npm run board</code>) verbindest du z. B. ein DGT-Brett oder
           spielst im Terminal.
         </p>
-        <div className="search-row">
+        <div className="search-row" hidden={STATIC}>
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (optional)" maxLength={20} />
           <button className="btn ghost" onClick={() => create("bot")}>
             🤖 Bot-Token
