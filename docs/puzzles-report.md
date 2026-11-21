@@ -1,28 +1,28 @@
 # Puzzle-Bericht
 
-Erzeugt mit `npm run puzzles:generate`: **24 Puzzles** (aus 24 Funden nach Entfernen doppelter Stellungen).
+Erzeugt mit `npm run puzzles:generate`: **281 Puzzles** (aus 281 Funden nach Entfernen doppelter Stellungen).
 
 ## Verteilung nach Stufe
 
 | Stufe | Rating | Anzahl | Anteil |
 |---|---|---|---|
-| Einsteiger | 0–999 | 20 | 83 % |
-| Leicht | 1000–1399 | 3 | 13 % |
-| Mittel | 1400–1799 | 1 | 4 % |
-| Schwer | 1800–2199 | 0 | 0 % |
+| Einsteiger | 0–999 | 216 | 77 % |
+| Leicht | 1000–1399 | 41 | 15 % |
+| Mittel | 1400–1799 | 21 | 7 % |
+| Schwer | 1800–2199 | 3 | 1 % |
 | Meister | 2200– | 0 | 0 % |
 
 ## Rating-Histogramm
 
 ```
- 400–599  ████████████████████████████ 11
- 600–799  █████████████ 5
- 800–999  ██████████ 4
-1000–1199 █████ 2
-1200–1399 ███ 1
-1400–1599 ███ 1
-1600–1799  0
-1800–1999  0
+ 400–599  ████████████████████ 94
+ 600–799  ███████ 34
+ 800–999  ███████████████████ 88
+1000–1199 ██████ 29
+1200–1399 ███ 12
+1400–1599 ████ 17
+1600–1799 █ 4
+1800–1999 █ 3
 2000–2199  0
 2200–2399  0
 2400–2599  0
@@ -33,29 +33,34 @@ Erzeugt mit `npm run puzzles:generate`: **24 Puzzles** (aus 24 Funden nach Entfe
 
 | Thema | Anzahl |
 |---|---|
-| Matt (`mate`) | 1 |
-| Matt in 2 (`mateIn2`) | 1 |
-| Gabel (`fork`) | 1 |
-| Fesselung (`pin`) | 1 |
-| Abzugsangriff (`discoveredAttack`) | 2 |
-| Hängende Figur (`hangingPiece`) | 8 |
-| Stiller Zug (`quietMove`) | 2 |
-| Vorteil (`advantage`) | 19 |
-| Entscheidender Vorteil (`crushing`) | 4 |
-| Eröffnung (`opening`) | 4 |
-| Mittelspiel (`middlegame`) | 19 |
-| Endspiel (`endgame`) | 1 |
-| Ein Zug (`oneMove`) | 16 |
-| Kurz (2 Züge) (`short`) | 5 |
-| Lang (3 Züge) (`long`) | 3 |
+| Matt (`mate`) | 3 |
+| Matt in 1 (`mateIn1`) | 1 |
+| Matt in 2 (`mateIn2`) | 2 |
+| Ersticktes Matt (`smotheredMate`) | 1 |
+| Gabel (`fork`) | 13 |
+| Fesselung (`pin`) | 14 |
+| Abzugsangriff (`discoveredAttack`) | 17 |
+| Opfer (`sacrifice`) | 6 |
+| Hängende Figur (`hangingPiece`) | 94 |
+| Stiller Zug (`quietMove`) | 14 |
+| En passant (`enPassant`) | 1 |
+| Vorteil (`advantage`) | 219 |
+| Entscheidender Vorteil (`crushing`) | 59 |
+| Eröffnung (`opening`) | 90 |
+| Mittelspiel (`middlegame`) | 183 |
+| Endspiel (`endgame`) | 8 |
+| Ein Zug (`oneMove`) | 216 |
+| Kurz (2 Züge) (`short`) | 45 |
+| Lang (3 Züge) (`long`) | 19 |
+| Sehr lang (4+ Züge) (`veryLong`) | 1 |
 
 ## Lösungslänge
 
 | Lösungszüge | Anzahl |
 |---|---|
-| 1 | 16 |
-| 2 | 5 |
-| 3 | 3 |
-| 4 | 0 |
+| 1 | 216 |
+| 2 | 45 |
+| 3 | 19 |
+| 4 | 1 |
 | 5 | 0 |
 | 6 | 0 |

@@ -129,9 +129,30 @@ async function collect() {
           const p = await solveFrom(analyzer, fen, cand.move, { ...DEFAULT_MINING, onReject: (r) => (rejects[r] = (rejects[r] ?? 0) + 1) });
           if (!p) continue;
           // Sehr leichte Puzzles entstehen von selbst reichlich; nur einen Teil behalten.
-          if (p.rating >= 800 || Math.random() < 0.35) found.push(p);
+          if (p.rating >= 900 || Math.random() < 0.35) found.push(p);
           else rejects.easy_quota = (rejects.easy_quota ?? 0) + 1;
           break;
+        }
+      }
+      // Mattangriffe: In Partien, die mit Matt enden, die letzten Züge auf erzwungene Mattfolgen prüfen
+      // (ohne eingebauten Fehler). Liefert mehrzügige Matt-Puzzles für die schweren Stufen.
+      const end = new Chess();
+      for (const m of moves) end.move({ from: m.slice(0, 2), to: m.slice(2, 4), promotion: m[4] });
+      if (end.isCheckmate()) {
+        const winnerParity = (moves.length - 1) % 2; // der letzte Zug (Matt) stammt vom Gewinner
+        const c = new Chess();
+        const fens: string[] = [];
+        for (const m of moves) {
+          fens.push(c.fen());
+          c.move({ from: m.slice(0, 2), to: m.slice(2, 4), promotion: m[4] });
+        }
+        for (let i = Math.max(8, moves.length - 24); i < moves.length - 2; i++) {
+          if (i % 2 === winnerParity) continue; // Zug i muss vom späteren Verlierer stammen
+          const p = await solveFrom(analyzer, fens[i]!, moves[i]!, { ...DEFAULT_MINING, onReject: (r) => (rejects[r] = (rejects[r] ?? 0) + 1) });
+          if (p && p.features?.mate && p.features.solverMoves >= 2) {
+            found.push(p);
+            break; // ein Matt-Puzzle pro Partie (spätere sind Teilstücke davon)
+          }
         }
       }
       let added = 0;
