@@ -239,7 +239,7 @@ export function Board({ fen, orientation, lastMove, check, movable, dests, onMov
           {settings.legalMoves && highlightDests.includes(sq) && <div className={pieceAt.has(sq) ? "hint capture" : "hint"} />}
           {circles.includes(sq) && <div className="mark-circle" />}
           {drag?.started && drag.touch && drag.over === sq && sq !== drag.square && <div className="drop-target" />}
-          {marks?.filter((m) => m.square === sq).map((m) => <div key={m.kind} className={`sq-mark ${m.kind}`} />)}
+          {marks?.filter((m) => m.square === sq).map((m) => <div key={m.kind} className={`sq-mark sq-mark-${m.kind}`} />)}
         </div>,
       );
     }
