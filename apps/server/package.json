@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx watch src/main.ts",
     "start": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx src/main.ts",
-    "openapi": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx src/scripts/exportOpenApi.ts"
+    "openapi": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx src/scripts/exportOpenApi.ts",
+    "puzzles:generate": "tsx src/scripts/generatePuzzles.ts"
   },
   "dependencies": {
+    "@chessy/puzzles": "0.1.0",
     "@chessy/shared": "0.1.0",
     "@fastify/cors": "^11.3.1",
     "@fastify/static": "^10.1.8",

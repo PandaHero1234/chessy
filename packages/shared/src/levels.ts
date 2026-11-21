@@ -27,6 +27,7 @@ export function aiSearchCommands(level: AiLevel, initialFen: string, moves: stri
   const lvl = AI_LEVEL_SETTINGS[level];
   return [
     `setoption name Skill Level value ${lvl.skill}`,
+    "setoption name MultiPV value 1",
     "ucinewgame",
     `position fen ${initialFen}${moves.length ? ` moves ${moves.join(" ")}` : ""}`,
     `go depth ${lvl.depth} movetime ${movetime}`,

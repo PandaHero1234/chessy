@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { buildApp } from "../app.ts";
 
-const { app } = await buildApp({ webDist: null, engine: { bestMove: async () => "", analyse: async () => ({}) as never, close() {} } });
+const { app } = await buildApp({ webDist: null, engine: { bestMove: async () => "", analyse: async () => ({}) as never, analyseMulti: async () => ({ lines: [], bestByDepth: [] }), close() {} } });
 await app.ready();
 const out = new URL("../../../../openapi.json", import.meta.url);
 writeFileSync(out, JSON.stringify(app.swagger(), null, 2) + "\n");

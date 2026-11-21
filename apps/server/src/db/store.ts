@@ -2,6 +2,7 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { GameSnapshot } from "@chessy/shared";
+import type { Puzzle, PuzzleStat, PuzzleStore, PuzzleUserState } from "@chessy/puzzles";
 import type { GameStore, StoredUser } from "../game/ports.ts";
 
 export type { StoredUser };
@@ -32,6 +33,28 @@ export class Store implements GameStore {
       );
       CREATE INDEX IF NOT EXISTS games_white ON games(white_id);
       CREATE INDEX IF NOT EXISTS games_black ON games(black_id);
+      CREATE TABLE IF NOT EXISTS puzzle_users (
+        user_id TEXT PRIMARY KEY,
+        data TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS puzzle_stats (
+        puzzle_id TEXT PRIMARY KEY,
+        rating INTEGER NOT NULL,
+        plays INTEGER NOT NULL,
+        wins INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS puzzle_attempts (
+        user_id TEXT NOT NULL,
+        puzzle_id TEXT NOT NULL,
+        PRIMARY KEY (user_id, puzzle_id)
+      );
+      CREATE TABLE IF NOT EXISTS user_puzzles (
+        user_id TEXT NOT NULL,
+        puzzle_id TEXT NOT NULL,
+        data TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (user_id, puzzle_id)
+      );
     `);
   }
 
@@ -84,5 +107,44 @@ export class Store implements GameStore {
 
   close() {
     this.db.close();
+  }
+
+  /** Puzzle-Daten (Spieler-Ratings, Puzzle-Ratings, Versuche, Puzzles aus eigenen Partien) in derselben Datenbank. */
+  puzzleStore(): PuzzleStore {
+    const db = this.db;
+    return {
+      getUser(userId) {
+        const row = db.prepare("SELECT data FROM puzzle_users WHERE user_id = ?").get(userId) as { data: string } | undefined;
+        return row ? (JSON.parse(row.data) as PuzzleUserState) : undefined;
+      },
+      saveUser(state) {
+        db.prepare("INSERT INTO puzzle_users (user_id, data) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET data = excluded.data").run(
+          state.user_id,
+          JSON.stringify(state),
+        );
+        const last = state.history[0];
+        if (last) db.prepare("INSERT OR IGNORE INTO puzzle_attempts (user_id, puzzle_id) VALUES (?, ?)").run(state.user_id, last.puzzle_id);
+      },
+      getStat(id) {
+        return db.prepare("SELECT rating, plays, wins FROM puzzle_stats WHERE puzzle_id = ?").get(id) as PuzzleStat | undefined;
+      },
+      saveStat(id, s) {
+        db.prepare(
+          "INSERT INTO puzzle_stats (puzzle_id, rating, plays, wins) VALUES (?, ?, ?, ?) ON CONFLICT(puzzle_id) DO UPDATE SET rating = excluded.rating, plays = excluded.plays, wins = excluded.wins",
+        ).run(id, s.rating, s.plays, s.wins);
+      },
+      attemptedIds(userId) {
+        return new Set((db.prepare("SELECT puzzle_id FROM puzzle_attempts WHERE user_id = ?").all(userId) as { puzzle_id: string }[]).map((r) => r.puzzle_id));
+      },
+      userPuzzles(userId) {
+        return (db.prepare("SELECT data FROM user_puzzles WHERE user_id = ? ORDER BY created_at DESC").all(userId) as { data: string }[]).map(
+          (r) => JSON.parse(r.data) as Puzzle,
+        );
+      },
+      addUserPuzzles(userId, puzzles) {
+        const stmt = db.prepare("INSERT OR IGNORE INTO user_puzzles (user_id, puzzle_id, data, created_at) VALUES (?, ?, ?, ?)");
+        for (const p of puzzles) stmt.run(userId, p.id, JSON.stringify(p), Date.now());
+      },
+    };
   }
 }

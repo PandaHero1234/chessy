@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { GameSnapshot } from "@chessy/shared";
-import { describeTimeControl, parseTimeControl } from "@chessy/shared";
+import { describeTimeControl, parseTimeControl, timeClassLabel } from "@chessy/shared";
 import { TimeControlPicker } from "../components/TimeControlPicker.tsx";
 import { Board } from "../components/Board.tsx";
 import { api } from "../lib/api.ts";
@@ -69,6 +69,9 @@ export function Home() {
             Bullet bis Daily, gegen Stockfish oder echte Gegner. Die offene API verbindet auch Bots, andere Apps und elektronische Bretter.
           </p>
           <div className="hero-links">
+            <a href={href("/puzzles")} onClick={onLinkClick} className="btn primary">
+              🧩 Puzzles lösen
+            </a>
             <a href={href("/developers")} onClick={onLinkClick} className="btn ghost">
               ⌘ API &amp; Boards verbinden
             </a>
@@ -181,7 +184,7 @@ export function GameRow({ g, me }: { g: GameSnapshot; me?: string }) {
       <span className="gr-players">
         {g.white.username} <span className="muted">vs</span> {g.black.username}
       </span>
-      <span className="muted small cap">{g.time_class}</span>
+      <span className="muted small cap">{timeClassLabel(g.time_class)}</span>
       <span className={`gr-result ${outcome === "Sieg" ? "win" : outcome === "Niederlage" ? "loss" : ""}`}>{outcome}</span>
     </a>
   );

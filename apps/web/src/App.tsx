@@ -10,6 +10,7 @@ import { Lobby } from "./pages/Lobby.tsx";
 import { ChessCom } from "./pages/ChessCom.tsx";
 import { Developers } from "./pages/Developers.tsx";
 import { SettingsPage } from "./pages/SettingsPage.tsx";
+import { Puzzles } from "./pages/Puzzles.tsx";
 
 const AccountCtx = createContext<Account | null>(null);
 const SetAccountCtx = createContext<(a: Account) => void>(() => undefined);
@@ -20,6 +21,7 @@ export const useToast = () => useContext(ToastCtx);
 
 const NAV = [
   ["/", "Spielen"],
+  ["/puzzles", "Puzzles"],
   ["/lobby", "Lobby"],
   ["/chesscom", "chess.com"],
   ["/developers", "API"],
@@ -66,6 +68,7 @@ export function App() {
   const gameMatch = /^\/game\/([\w-]+)/.exec(path);
   let page;
   if (gameMatch) page = <GamePage id={gameMatch[1]!} />;
+  else if (path === "/puzzles" || path.startsWith("/puzzles/")) page = <Puzzles path={path} />;
   else if (path === "/lobby") page = <Lobby />;
   else if (path === "/chesscom") page = <ChessCom />;
   else if (path === "/developers") page = <Developers />;

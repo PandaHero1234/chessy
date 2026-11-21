@@ -17,6 +17,9 @@ const fakeEngine: Engine = {
   async analyse(fen) {
     return { fen, depth: 1, bestmove: "e2e4", eval: { cp: 20 }, pv: ["e2e4"] };
   },
+  async analyseMulti() {
+    return { lines: [], bestByDepth: [] };
+  },
   close() {},
 };
 

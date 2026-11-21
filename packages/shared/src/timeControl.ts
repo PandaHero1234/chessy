@@ -101,3 +101,15 @@ export const TIME_CONTROL_PRESETS: Record<Exclude<TimeClass, "unlimited">, TimeC
   ],
   unlimited: [{ id: "-", label: "∞", timeControl: { type: "unlimited" } }],
 };
+
+export const TIME_CLASS_LABELS: Record<TimeClass, string> = {
+  bullet: "Bullet",
+  blitz: "Blitz",
+  rapid: "Schnell",
+  classical: "Klassisch",
+  daily: "Daily",
+  unlimited: "Frei",
+};
+
+/** Deutsches Label; unbekannte Werte (z. B. aus chess.com) bleiben unverändert. */
+export const timeClassLabel = (tc: string) => TIME_CLASS_LABELS[tc as TimeClass] ?? tc;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Chess } from "chess.js";
 import type { AnalysisResult, ChatLine, Color, GameSnapshot, GameStreamEvent } from "@chessy/shared";
-import { describeTimeControl, parseTimeControl } from "@chessy/shared";
+import { describeTimeControl, parseTimeControl, timeClassLabel } from "@chessy/shared";
 import { Board } from "../components/Board.tsx";
 import { ClockView } from "../components/Clock.tsx";
 import { MoveList } from "../components/MoveList.tsx";
@@ -87,6 +87,7 @@ export function GamePage({ id }: { id: string }) {
   const [engineOn, setEngineOn] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [mining, setMining] = useState(false);
   const prevMoves = useRef<number | null>(null);
   const prevStatus = useRef<string | null>(null);
 
@@ -224,6 +225,18 @@ export function GamePage({ id }: { id: string }) {
     }
   };
 
+  const findPuzzles = async () => {
+    setMining(true);
+    try {
+      const r = await api.puzzles.fromGame(game.id);
+      toast(r.found ? `${r.found} ${r.found === 1 ? "Puzzle" : "Puzzles"} gefunden – unter Puzzles → Aus meinen Partien` : "Keine eindeutige Taktik gefunden");
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setMining(false);
+    }
+  };
+
   const rematch = async () => {
     const me = myColor ?? "white";
     const opp = game[me === "white" ? "black" : "white"];
@@ -328,7 +341,7 @@ export function GamePage({ id }: { id: string }) {
           <div className="side-head">
             <div>
               <div className="tc-title">
-                {describeTimeControl(parseTimeControl(game.time_control))} · <span className="cap">{game.time_class}</span>
+                {describeTimeControl(parseTimeControl(game.time_control))} · <span className="cap">{timeClassLabel(game.time_class)}</span>
               </div>
               <div className="muted small">
                 {game.source === "import" ? "Importierte Partie" : isLocal ? "Lokale Partie" : game.white.kind === "ai" || game.black.kind === "ai" ? "Gegen Computer" : "Online"}
@@ -428,6 +441,11 @@ export function GamePage({ id }: { id: string }) {
               {game.source === "live" && playing && (
                 <button className="btn primary" onClick={rematch}>
                   ↻ Neue Partie
+                </button>
+              )}
+              {playing && game.status === "ended" && timeline.san.length >= 6 && (
+                <button className="btn ghost" onClick={findPuzzles} disabled={mining} title="Stockfish sucht Taktiken in dieser Partie">
+                  {mining ? "Suche …" : "🧩 Puzzles daraus"}
                 </button>
               )}
               <button className="btn ghost" onClick={() => downloadPgn(game)}>

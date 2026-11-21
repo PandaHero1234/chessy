@@ -1,4 +1,4 @@
-import type { Account, AiLevel, AnalysisResult, GameSnapshot } from "@chessy/shared";
+import type { Account, AiLevel, AnalysisResult, GameSnapshot, MultiPvResult, SearchLimit } from "@chessy/shared";
 
 /**
  * Schnittstellen des GameService zur Außenwelt. Sie sind bewusst frei von Node-APIs, damit dieselbe
@@ -33,6 +33,8 @@ export interface MoveRequest {
 export interface Engine {
   bestMove(req: MoveRequest): Promise<string>;
   analyse(fen: string, depth: number): Promise<AnalysisResult>;
+  /** Mehrere Hauptvarianten (für Puzzle-Erkennung). Bewertungen aus Sicht der Seite am Zug. */
+  analyseMulti(fen: string, multipv: number, limit: SearchLimit): Promise<MultiPvResult>;
   close(): void;
 }
 

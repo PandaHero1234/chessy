@@ -20,6 +20,8 @@ export interface BoardProps {
   /** Legale Ziele pro Startfeld. */
   dests: Map<string, string[]>;
   onMove?: (from: string, to: string, promotion?: string) => void;
+  /** Hervorgehobene Felder, z. B. Tipp oder Richtig/Falsch-Feedback bei Puzzles. */
+  marks?: { square: string; kind: "hint" | "good" | "bad" }[];
 }
 
 const FILES = "abcdefgh";
@@ -80,7 +82,7 @@ interface Arrow {
   to: string;
 }
 
-export function Board({ fen, orientation, lastMove, check, movable, dests, onMove }: BoardProps) {
+export function Board({ fen, orientation, lastMove, check, movable, dests, onMove, marks }: BoardProps) {
   const settings = useSettings();
   const theme = BOARD_THEMES[settings.boardTheme];
   const boardRef = useRef<HTMLDivElement>(null);
@@ -232,6 +234,7 @@ export function Board({ fen, orientation, lastMove, check, movable, dests, onMov
           {check === sq && <div className="check-glow" />}
           {settings.legalMoves && highlightDests.includes(sq) && <div className={pieceAt.has(sq) ? "hint capture" : "hint"} />}
           {circles.includes(sq) && <div className="mark-circle" />}
+          {marks?.filter((m) => m.square === sq).map((m) => <div key={m.kind} className={`sq-mark ${m.kind}`} />)}
         </div>,
       );
     }
