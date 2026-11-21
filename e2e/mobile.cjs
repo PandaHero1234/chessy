@@ -141,6 +141,16 @@ async function run(size, browser) {
   await page.waitForSelector(".sheet.open");
   await page.waitForTimeout(350);
   ok((await vis(".sheet.open .rating-card")) === 100, "Auszug: Rating sichtbar");
+  const sheet = await page.evaluate(() => {
+    const s = document.querySelector(".sheet.open");
+    const chips = [...s.querySelectorAll(".puzzle-filters .chip")].map((c) => ({ t: c.textContent, r: c.getBoundingClientRect(), cut: c.scrollWidth > c.clientWidth + 1 }));
+    const overlap = chips.some((a, i) => chips.some((b, j) => i < j && a.r.left < b.r.right - 1 && b.r.left < a.r.right - 1 && a.r.top < b.r.bottom - 1 && b.r.top < a.r.bottom - 1));
+    return { bottom: Math.round(s.getBoundingClientRect().bottom), ih: innerHeight, overlap, cut: chips.filter((c) => c.cut).map((c) => c.t), small: chips.filter((c) => c.r.height < 44).length };
+  });
+  ok(sheet.bottom === sheet.ih, "Auszug: sitzt bündig am unteren Rand", `${sheet.bottom} von ${sheet.ih}`);
+  ok(!sheet.overlap && sheet.cut.length === 0, "Auszug: Schwierigkeits-Knöpfe überlappen nicht und sind vollständig lesbar", sheet.cut.join(", ") || "Überlappung");
+  ok(sheet.small === 0, "Auszug: Knöpfe mindestens 44 px hoch");
+  ok((await vis(".sheet.open .sheet-done")) === 100, "Auszug: „Fertig“ ohne Scrollen erreichbar");
   await shot("5-auszug");
   await page.locator(".sheet.open .chip", { hasText: "Einsteiger" }).tap();
   await page.locator(".sheet-done").tap();
@@ -197,6 +207,35 @@ async function run(size, browser) {
   await page.waitForSelector(".modal");
   ok((await vis(".modal")) === 100, "Partie: Ergebnis-Fenster vollständig sichtbar");
   await shot("9-ergebnis");
+
+  // ---------- Einstellungen
+  await page.goto(base + "/settings");
+  await page.waitForSelector(".theme-grid");
+  const set = await page.evaluate(() => ({
+    sw: document.documentElement.scrollWidth,
+    iw: innerWidth,
+    toggles: [...document.querySelectorAll(".toggle")].map((t) => Math.round(t.getBoundingClientRect().height)),
+    seg: [...document.querySelectorAll(".segmented button")].map((b) => ({ h: Math.round(b.getBoundingClientRect().height), cut: b.scrollWidth > b.clientWidth + 1 })),
+  }));
+  ok(set.sw <= set.iw, "Einstellungen: kein seitliches Scrollen", `${set.sw} > ${set.iw}`);
+  ok(set.toggles.every((h) => h >= 44), "Einstellungen: Schalterzeilen mindestens 44 px hoch", set.toggles.join(","));
+  ok(set.seg.every((b) => b.h <= 48 && !b.cut), "Einstellungen: Dunkel/Hell/System einzeilig und vollständig", JSON.stringify(set.seg));
+  const readSetting = (k) => page.evaluate((k) => JSON.parse(localStorage.getItem("chessy.settings") || "{}")[k], k);
+  await page.locator(".toggle", { hasText: "Sounds" }).tap();
+  ok((await readSetting("sound")) === false, "Einstellungen: Schalter reagiert auf Antippen");
+  await page.locator(".toggle", { hasText: "Sounds" }).tap();
+  await page.locator(".theme-swatch", { hasText: "Holz" }).tap();
+  ok((await readSetting("boardTheme")) === "wood", "Einstellungen: Brettfarbe lässt sich wählen");
+  await page.locator(".segmented button", { hasText: "Hell" }).tap();
+  const offTrack = await page.evaluate(() => {
+    const t = [...document.querySelectorAll(".toggle")].find((l) => !l.querySelector("input").checked)?.querySelector(".toggle-track");
+    return t ? getComputedStyle(t).backgroundColor : null;
+  });
+  const [tr, tg, tb, ta = 1] = (offTrack ?? "rgba(0,0,0,1)").match(/[\d.]+/g).map(Number);
+  ok(ta >= 0.3 && tr + tg + tb < 600, "Einstellungen: ausgeschalteter Schalter ist im hellen Design erkennbar", String(offTrack));
+  await shot("10-einstellungen-hell");
+  await page.locator(".segmented button", { hasText: "Dunkel" }).tap();
+  await page.locator(".theme-swatch", { hasText: "Turnier" }).tap();
 
   // ---------- Tippziele und Schriftgrößen
   await page.goto(base + "/puzzles");
