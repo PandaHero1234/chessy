@@ -8,7 +8,7 @@ Das Web-Frontend ist nur *ein* Client der öffentlichen API. Bots, andere Apps u
 - **chess.com-Anbindung:** Profile, Ratings und Monatsarchive über einen Proxy laden und als nachspielbare Partie importieren. Die chess.com-API ist nur lesend; gespielt wird deshalb auf dem eigenen Server.
 
 **▶ Demo im Browser: https://pandahero1234.github.io/chessy/**
-Die Demo läuft ohne Server: Gegen Computer, lokal zu zweit, Analyse und chess.com-Import gehen dort. Der `GameService`
+Die Demo läuft ohne Server: Gegen Computer, lokal zu zweit, Puzzles, Analyse und chess.com-Import gehen dort. Der `GameService`
 und Stockfish (WASM) laufen dafür im Browser. Online-Lobby, Einladungslinks und die Bot/Board-API brauchen den Server (siehe unten).
 
 ## Schnellstart
@@ -35,6 +35,7 @@ Voraussetzung: Node.js ≥ 22.5. SQLite kommt über das eingebaute `node:sqlite`
 | **Gegner** | Stockfish in 8 Stufen · Online-Lobby mit Matchmaking · Einladungslink · Lokal (zwei Spieler, ein Gerät) |
 | **Regeln** | Matt, Patt, dreifache Wiederholung, 50 Züge, ungenügendes Material, Zeit gegen ungenügendes Material, Abbruch vor dem ersten Zug, Remis- und Rücknahmeangebote |
 | **Brett** | Eigenes Brett: Drag & Drop + Klick, animierte Figuren, Pfeile/Kreise per Rechtsklick, Umwandlungsauswahl, 6 Farbschemata, Sounds |
+| **Puzzles** | Selbst erzeugte Puzzles in 5 Stufen (Einsteiger bis Meister) oder adaptiv nach eigenem Elo-Rating, 25+ Themen (Gabel, Fesselung, Grundreihenmatt …), Tagespuzzle, 3-Minuten-Puzzle-Sturm, Puzzles aus eigenen Partien. Nur Algorithmen + lokaler Stockfish, keine KI-Dienste. Details: [docs/puzzles.md](docs/puzzles.md) |
 | **Analyse** | Bewertungsbalken + Hauptvariante (Stockfish), Nachspielen per Pfeiltasten, PGN-Export |
 | **chess.com** | Profil, Ratings, Archive; Partien importieren und analysieren |
 | **Boards** | `BoardAdapter`-Schnittstelle, Terminal-Brett, DGT-E-Board-Adapter (experimentell) |
@@ -42,7 +43,9 @@ Voraussetzung: Node.js ≥ 22.5. SQLite kommt über das eingebaute `node:sqlite`
 ## Architektur
 
 ```
-packages/shared          Typen (GameSnapshot, Events), Zeitmodi + Presets
+packages/shared          Typen (GameSnapshot, Events), Zeitmodi + Presets, UCI-/MultiPV-Auswertung
+packages/puzzles         Puzzle-Logik (Server + Browser): Mining, Eindeutigkeit, Themen, Schwierigkeit, Elo, Auswahl
+  data/puzzles.json      Erzeugte Puzzle-Sammlung (npm run puzzles:generate)
 apps/server              Fastify: REST, NDJSON-Streams, WebSocket, OpenAPI (/docs), Stockfish-Pool, SQLite
   src/game/clock.ts      Schachuhr (rein, testbar)
   src/game/game.ts       Partie: Regeln (chess.js), Ergebnis, PGN
@@ -94,6 +97,15 @@ curl -X POST localhost:3000/api/v1/games/$GAME/move/e2e4 -H "authorization: Bear
 
 Die vollständige, interaktive Doku liegt unter **`/docs`** (Swagger UI), die Spezifikation unter `/docs/json` bzw. in `openapi.json`.
 
+## Puzzles erzeugen
+
+```bash
+npm run puzzles:generate -- --target 1000 --workers 4 --minutes 120   # sammeln (fortsetzbar)
+npm run puzzles:generate -- --build                                   # puzzles.json + docs/puzzles-report.md
+```
+
+Wie Fehler gefunden, Lösungen auf Eindeutigkeit geprüft, Themen erkannt und Schwierigkeiten berechnet werden, steht in [docs/puzzles.md](docs/puzzles.md).
+
 ## Bretter & Bots verbinden
 
 Siehe [docs/connect-a-board.md](docs/connect-a-board.md). Kurzfassung:
@@ -112,10 +124,13 @@ npm run bot:random -- --tc 180+2
 ## Tests
 
 ```bash
-npm test           # Vitest: Uhr, Regeln, REST-API, NDJSON-Stream, Lobby, Import, DGT-Protokoll, Zugerkennung
+npm test           # Vitest: Uhr, Regeln, REST-API, NDJSON-Stream, Lobby, Import, DGT-Protokoll, Zugerkennung,
+                   #         Puzzle-Logik, Puzzle-API (inkl. echter Stockfish-Suche), Prüfung jedes Puzzles der Datei
 npm run typecheck
 node e2e/smoke.cjs    # Playwright: Partie gegen Computer, Screenshots (Server muss laufen)
 node e2e/online.cjs   # Playwright: zwei Browser spielen online + Lobby-Paarung
+node e2e/puzzles.cjs  # Playwright: Training, Tipp, Lösung, Tagespuzzle, Sturm, Puzzles aus eigener Partie
+                      #   (auch gegen die Pages-Demo: node e2e/puzzles.cjs http://localhost:4000/chessy)
 ```
 
 ## GitHub Pages

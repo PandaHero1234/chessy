@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@chessy/puzzles": "0.1.0",
     "@chessy/shared": "0.1.0",
     "chess.js": "^1.4.0",
     "react": "^19.2.0",

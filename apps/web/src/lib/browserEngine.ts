@@ -1,4 +1,4 @@
-import { type AnalysisResult, type Color, aiMoveTime, aiSearchCommands, parseAnalysis } from "@chessy/shared";
+import { type AnalysisResult, type Color, type MultiPvResult, type SearchLimit, aiMoveTime, aiSearchCommands, multiPvCommands, parseAnalysis, parseMultiPv } from "@chessy/shared";
 import type { Engine, MoveRequest } from "../../../server/src/game/ports.ts";
 import { BASE } from "./paths.ts";
 
@@ -73,9 +73,13 @@ export class BrowserEngine implements Engine {
   }
 
   async analyse(fen: string, depth: number): Promise<AnalysisResult> {
-    const lines = await this.run(["setoption name Skill Level value 20", "ucinewgame", `position fen ${fen}`, `go depth ${depth}`]);
+    const lines = await this.run(["setoption name Skill Level value 20", "setoption name MultiPV value 1", "ucinewgame", `position fen ${fen}`, `go depth ${depth}`]);
     const turn: Color = fen.split(" ")[1] === "b" ? "black" : "white";
     return parseAnalysis(fen, lines, turn);
+  }
+
+  async analyseMulti(fen: string, multipv: number, limit: SearchLimit): Promise<MultiPvResult> {
+    return parseMultiPv(await this.run(multiPvCommands(fen, multipv, limit)));
   }
 
   close() {

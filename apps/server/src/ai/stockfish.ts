@@ -1,8 +1,8 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createRequire } from "node:module";
-import type { AnalysisResult, Color } from "@chessy/shared";
+import type { AnalysisResult, Color, MultiPvResult, SearchLimit } from "@chessy/shared";
 import type { Engine, MoveRequest } from "../game/ports.ts";
-import { AI_LEVEL_SETTINGS, aiMoveTime, aiSearchCommands, parseAnalysis } from "@chessy/shared";
+import { AI_LEVEL_SETTINGS, aiMoveTime, aiSearchCommands, multiPvCommands, parseAnalysis, parseMultiPv } from "@chessy/shared";
 
 const require = createRequire(import.meta.url);
 const findEngine: (flavor: string) => string = require("stockfish").findEngine;
@@ -15,7 +15,7 @@ interface Job {
 }
 
 /** Eine Stockfish-Instanz (WASM, Single-Thread) als Kindprozess; spricht UCI über stdin/stdout. */
-class EngineProcess {
+export class UciProcess {
   private proc: ChildProcessWithoutNullStreams;
   private buffer = "";
   private lines: string[] = [];
@@ -86,16 +86,16 @@ export type { Engine, MoveRequest };
 
 /** Kleiner Pool von Engine-Prozessen, die lazy gestartet werden. */
 export class StockfishPool implements Engine {
-  private engines: EngineProcess[] = [];
+  private engines: UciProcess[] = [];
 
   constructor(private readonly size = 2) {}
 
-  private pick(): EngineProcess {
+  private pick(): UciProcess {
     this.engines = this.engines.filter((e) => !e.dead);
     const idle = this.engines.find((e) => e.load === 0);
     if (idle) return idle;
     if (this.engines.length < this.size) {
-      const e = new EngineProcess();
+      const e = new UciProcess();
       this.engines.push(e);
       return e;
     }
@@ -113,12 +113,17 @@ export class StockfishPool implements Engine {
   async analyse(fen: string, depth: number): Promise<AnalysisResult> {
     const lines = await this.pick().run([
       "setoption name Skill Level value 20",
+      "setoption name MultiPV value 1",
       "ucinewgame",
       `position fen ${fen}`,
       `go depth ${depth}`,
     ]);
     const turn: Color = fen.split(" ")[1] === "b" ? "black" : "white";
     return parseAnalysis(fen, lines, turn);
+  }
+
+  async analyseMulti(fen: string, multipv: number, limit: SearchLimit): Promise<MultiPvResult> {
+    return parseMultiPv(await this.pick().run(multiPvCommands(fen, multipv, limit)));
   }
 
   close() {

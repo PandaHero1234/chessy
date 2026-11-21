@@ -1,4 +1,5 @@
 import type { Account, AnalysisResult, GameSnapshot, Seek, TimeControl } from "@chessy/shared";
+import type { CheckResponse, Difficulty, Puzzle, PuzzlePublic, PuzzleTheme, PuzzleUserState } from "@chessy/puzzles";
 import { STATIC } from "./paths.ts";
 import { ensureLocalAccount, localApi, renameLocal } from "./localBackend.ts";
 
@@ -96,7 +97,31 @@ const remoteApi = {
     archives: (u: string) => request<{ archives: string[] }>("GET", `/chesscom/player/${u}/games/archives`, undefined, false),
     month: (u: string, y: string, m: string) => request<{ games: ChessComGame[] }>("GET", `/chesscom/player/${u}/games/${y}/${m}`, undefined, false),
   },
+  puzzles: {
+    catalog: () => request<PuzzleCatalog>("GET", "/puzzles/catalog", undefined, false),
+    next: (f: { difficulty?: Difficulty; theme?: PuzzleTheme; mine?: boolean } = {}) => {
+      const q = new URLSearchParams(Object.entries(f).filter(([, v]) => v !== undefined && v !== false).map(([k, v]) => [k, String(v)]));
+      return request<PuzzlePublic>("GET", `/puzzles/next${q.size ? `?${q}` : ""}`);
+    },
+    daily: () => request<PuzzlePublic & { daily: string }>("GET", "/puzzles/daily", undefined, false),
+    get: (id: string) => request<PuzzlePublic>("GET", `/puzzles/${id}`),
+    check: (id: string, moves: string[]) => request<CheckResponse>("POST", `/puzzles/${id}/check`, { moves }),
+    hint: (id: string, solved: number) => request<{ square: string | null }>("POST", `/puzzles/${id}/hint`, { solved }),
+    solution: (id: string) => request<{ moves: string[]; themes: PuzzleTheme[]; rating?: CheckResponse["rating"] }>("POST", `/puzzles/${id}/solution`),
+    stats: () => request<PuzzleStats>("GET", "/puzzles/stats"),
+    storm: (count = 60) => request<Puzzle[]>("GET", `/puzzles/storm?count=${count}`, undefined, false),
+    stormResult: (score: number) => request<{ score: number; best: number; new_record: boolean }>("POST", "/puzzles/storm/result", { score }),
+    fromGame: (gameId: string) => request<{ found: number; puzzles: PuzzlePublic[] }>("POST", `/puzzles/from-game/${gameId}`),
+  },
 };
+
+export interface PuzzleCatalog {
+  total: number;
+  difficulties: Record<Difficulty, number>;
+  themes: Partial<Record<PuzzleTheme, number>>;
+}
+
+export type PuzzleStats = PuzzleUserState & { puzzles_available: number; own_puzzles: number };
 
 export type Api = typeof remoteApi;
 

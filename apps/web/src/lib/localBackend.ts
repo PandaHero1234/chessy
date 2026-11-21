@@ -1,4 +1,5 @@
 import type { Account, GameSnapshot } from "@chessy/shared";
+import { MemoryPuzzleStore, PuzzleError, PuzzleService, type Puzzle, type PuzzleStore } from "@chessy/puzzles";
 import { GameService, ApiError as ServiceError } from "../../../server/src/game/service.ts";
 import type { GameStore, StoredUser } from "../../../server/src/game/ports.ts";
 import { BrowserEngine } from "./browserEngine.ts";
@@ -62,6 +63,52 @@ class LocalStore implements GameStore {
     return this.games.filter((g) => g.white.id === userId || g.black.id === userId).slice(0, limit);
   }
   close() {}
+}
+
+const PUZZLE_KEY = "chessy.demo.puzzles";
+
+/** Puzzle-Fortschritt im Browser: Rating, Verlauf, Puzzle-Ratings und Puzzles aus eigenen Partien. */
+class LocalPuzzleStore extends MemoryPuzzleStore implements PuzzleStore {
+  constructor() {
+    super();
+    const saved = read<{ users?: [string, never][]; stats?: [string, never][]; own?: [string, Puzzle[]][] }>(PUZZLE_KEY, {});
+    this.users = new Map(saved.users ?? []);
+    this.stats = new Map(saved.stats ?? []);
+    this.own = new Map(saved.own ?? []);
+  }
+  private persist() {
+    write(PUZZLE_KEY, { users: [...this.users], stats: [...this.stats], own: [...this.own] });
+  }
+  override saveUser(s: Parameters<MemoryPuzzleStore["saveUser"]>[0]) {
+    super.saveUser(s);
+    this.persist();
+  }
+  override saveStat(id: string, s: Parameters<MemoryPuzzleStore["saveStat"]>[1]) {
+    super.saveStat(id, s);
+    this.persist();
+  }
+  override addUserPuzzles(userId: string, puzzles: Puzzle[]) {
+    super.addUserPuzzles(userId, puzzles);
+    this.persist();
+  }
+}
+
+let puzzleService: Promise<PuzzleService> | null = null;
+/** Die Puzzle-Sammlung wird erst geladen, wenn sie gebraucht wird (eigener Chunk). */
+function puzzlesReady() {
+  puzzleService ??= import("@chessy/puzzles/data").then((m) => new PuzzleService(m.default as Puzzle[], new LocalPuzzleStore()));
+  return puzzleService;
+}
+
+async function puzzleCall<T>(fn: (s: PuzzleService, userId: string) => T | Promise<T>): Promise<T> {
+  const s = await puzzlesReady();
+  if (!user) await ensureLocalAccount();
+  try {
+    return await fn(s, user!.id);
+  } catch (e) {
+    if (e instanceof PuzzleError || e instanceof ServiceError) throw new ApiError(e.statusCode, e.code, e.message);
+    throw e;
+  }
 }
 
 let service: GameService | null = null;
@@ -168,4 +215,29 @@ export const localApi: Api = {
     archives: (u) => chessCom<{ archives: string[] }>(`/player/${ccUser(u)}/games/archives`),
     month: (u, y, m) => chessCom<{ games: ChessComGame[] }>(`/player/${ccUser(u)}/games/${y}/${m}`),
   },
+  puzzles: {
+    catalog: () => puzzleCall((s) => s.catalog()),
+    next: (f = {}) => puzzleCall((s, u) => s.next(u, f)),
+    daily: () => puzzleCall((s) => s.daily() as ReturnType<PuzzleService["daily"]> & { daily: string }),
+    get: (id) => puzzleCall((s, u) => s.get(u, id)),
+    check: (id, moves) => puzzleCall((s, u) => s.check(u, id, moves)),
+    hint: (id, solved) => puzzleCall((s, u) => s.hint(u, id, solved)),
+    solution: (id) => puzzleCall((s, u) => s.solution(u, id)),
+    stats: () => puzzleCall((s, u) => s.stats(u)),
+    storm: (count = 60) => puzzleCall((s) => s.storm(count)),
+    stormResult: (score) => puzzleCall((s, u) => s.stormResult(u, score)),
+    fromGame: (gameId) =>
+      puzzleCall(async (s, u) => {
+        const g = boot().getSnapshot(gameId);
+        if (g.status !== "ended" && g.status !== "aborted") throw new ApiError(409, "game_running", "Die Partie läuft noch");
+        boot();
+        const found = await s.fromGame(u, { id: g.id, initialFen: g.initial_fen, moves: g.moves.split(" ").filter(Boolean) }, engine!, {
+          scanNodes: 60_000,
+          solveNodes: 300_000,
+          minPly: 4,
+        });
+        return { found: found.length, puzzles: found.map((p) => s.get(u, p.id)) };
+      }),
+  },
 };
+

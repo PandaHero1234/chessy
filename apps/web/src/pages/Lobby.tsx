@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Seek } from "@chessy/shared";
-import { describeTimeControl, parseTimeControl } from "@chessy/shared";
+import { describeTimeControl, parseTimeControl, timeClassLabel } from "@chessy/shared";
 import { TimeControlPicker } from "../components/TimeControlPicker.tsx";
 import { api } from "../lib/api.ts";
 import { live } from "../lib/live.ts";
@@ -83,7 +83,7 @@ function LiveLobby() {
                   <tr key={s.id}>
                     <td>{s.username}</td>
                     <td>{describeTimeControl(parseTimeControl(s.time_control))}</td>
-                    <td className="cap">{s.time_class}</td>
+                    <td className="cap">{timeClassLabel(s.time_class)}</td>
                     <td>
                       <button className="btn small primary" onClick={() => seek(s.time_control)}>
                         Spielen

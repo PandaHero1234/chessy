@@ -1,6 +1,7 @@
 node_modules/
 dist/
-data/
+/data/
+apps/server/data/
 *.db
 *.db-journal
 .vite/

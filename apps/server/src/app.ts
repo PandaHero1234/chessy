@@ -13,6 +13,9 @@ import { Store, type StoredUser } from "./db/store.ts";
 import { StockfishPool, type Engine } from "./ai/stockfish.ts";
 import { ChessComClient } from "./chesscom/client.ts";
 import { schemas, ref, errorResponses, timeControlInput } from "./routes/schemas.ts";
+import { registerPuzzleRoutes } from "./routes/puzzles.ts";
+import { createRequire } from "node:module";
+import { PuzzleService, type Puzzle } from "@chessy/puzzles";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -28,18 +31,26 @@ export interface AppOptions {
   /** Pfad zum gebauten Web-Frontend (apps/web/dist); wird ausgeliefert, falls vorhanden. */
   webDist?: string | null;
   keepAliveMs?: number;
+  /** Puzzle-Sammlung (Standard: packages/puzzles/data/puzzles.json). */
+  puzzles?: Puzzle[];
+  /** Eigene Engine für die Puzzle-Suche in Partien (Standard: separater Stockfish-Prozess). */
+  miner?: Engine;
 }
 
 const API = "/api/v1";
 const here = dirname(fileURLToPath(import.meta.url));
 
-export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyInstance; service: GameService }> {
+export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyInstance; service: GameService; puzzles: PuzzleService }> {
   const app = Fastify({ logger: opts.logger ?? false });
   const store = new Store(opts.dbPath ?? ":memory:");
   const engine = opts.engine ?? new StockfishPool();
   const service = new GameService(store, engine);
   const chessCom = opts.chessCom ?? new ChessComClient();
   const keepAliveMs = opts.keepAliveMs ?? 7000;
+  const puzzleList = opts.puzzles ?? (createRequire(import.meta.url)("@chessy/puzzles/data") as Puzzle[]);
+  const puzzles = new PuzzleService(puzzleList, store.puzzleStore());
+  // Separater Engine-Prozess, damit lange Puzzle-Suchen keine Computerzüge in laufenden Partien blockieren.
+  const miner = opts.miner ?? new StockfishPool(1);
 
   for (const s of schemas) app.addSchema(s);
 
@@ -65,6 +76,7 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
         { name: "lobby", description: "Matchmaking" },
         { name: "streams", description: "Echtzeit-Events" },
         { name: "analysis", description: "Engine-Analyse" },
+        { name: "puzzles", description: "Schach-Puzzles: Stufen, adaptiv, Tagespuzzle, Sturm, aus eigenen Partien" },
         { name: "chesscom", description: "chess.com Public API (Proxy, nur lesend)" },
       ],
       components: {
@@ -493,6 +505,8 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
     (p) => chessCom.monthlyGames(p.username!, p.year!, p.month!),
   );
 
+  registerPuzzleRoutes(app, { puzzles, games: service, miner, auth });
+
   app.get(`${API}`, { schema: { hide: true } }, async () => ({ name: "chessy", version: "1.0.0", docs: "/docs", openapi: "/docs/json" }));
 
   // ------------------------------------------------------------ Web-Frontend
@@ -508,8 +522,9 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   app.addHook("onClose", async () => {
     service.shutdown();
     engine.close();
+    miner.close();
     store.close();
   });
 
-  return { app, service };
+  return { app, service, puzzles };
 }

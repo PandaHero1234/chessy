@@ -107,6 +107,56 @@ export const schemas = [
     },
     required: ["fen", "depth", "bestmove", "eval", "pv"],
   },
+  {
+    $id: "PuzzlePublic",
+    type: "object",
+    description: "Puzzle ohne Lösung. `fen` ist die Stellung vor dem Fehler des Gegners; `initial_move` wird vorgespielt.",
+    properties: {
+      id: { type: "string" },
+      fen: { type: "string" },
+      initial_move: { type: "string", description: "Fehler des Gegners (UCI), wird vor dem Lösen ausgeführt" },
+      color: color,
+      rating: { type: "integer" },
+      solver_moves: { type: "integer", description: "Anzahl der eigenen Züge in der Lösung" },
+      source: { type: "string" },
+      daily: { type: "string", description: "Nur beim Tagespuzzle: Datum (UTC)" },
+    },
+    required: ["id", "fen", "initial_move", "color", "rating", "solver_moves", "source"],
+  },
+  {
+    $id: "Puzzle",
+    type: "object",
+    description: "Puzzle mit Lösung (Format der Lichess-Puzzle-Datenbank): moves[0] = Fehler des Gegners, danach Lösungszüge und Antworten.",
+    properties: {
+      id: { type: "string" },
+      fen: { type: "string" },
+      moves: { type: "array", items: { type: "string" } },
+      rating: { type: "integer" },
+      themes: { type: "array", items: { type: "string" } },
+      source: { type: "string" },
+    },
+    required: ["id", "fen", "moves", "rating", "themes", "source"],
+  },
+  {
+    $id: "PuzzleRatingChange",
+    type: "object",
+    properties: { before: { type: "integer" }, after: { type: "integer" }, delta: { type: "integer" } },
+    required: ["before", "after", "delta"],
+  },
+  {
+    $id: "PuzzleCheck",
+    type: "object",
+    properties: {
+      status: { type: "string", enum: ["correct", "wrong", "solved"] },
+      reply: { type: "string", description: "Bei `correct`: Antwort des Gegners (UCI)" },
+      next_index: { type: "integer" },
+      expected_index: { type: "integer", description: "Bei `wrong`: welcher eigene Zug falsch war" },
+      rating: { $ref: "PuzzleRatingChange#" },
+      themes: { type: "array", items: { type: "string" } },
+      solution: { type: "array", items: { type: "string" } },
+    },
+    required: ["status"],
+  },
 ];
 
 export const ref = (id: string) => ({ $ref: `${id}#` });

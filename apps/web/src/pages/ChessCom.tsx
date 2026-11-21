@@ -1,3 +1,4 @@
+import { timeClassLabel } from "@chessy/shared";
 import { useState } from "react";
 import { api, type ChessComGame, type ChessComPlayer, type ChessComStats } from "../lib/api.ts";
 import { navigate } from "../lib/router.ts";
@@ -149,7 +150,7 @@ export function ChessCom() {
                     {g.white.username} <span className="muted">({g.white.rating})</span> <span className="muted">vs</span> {g.black.username}{" "}
                     <span className="muted">({g.black.rating})</span>
                   </span>
-                  <span className="muted small cap">{g.time_class}</span>
+                  <span className="muted small cap">{timeClassLabel(g.time_class)}</span>
                   <span className="muted small">{new Date(g.end_time * 1000).toLocaleDateString("de-DE")}</span>
                   <span className={`gr-result ${res}`}>{res === "win" ? "Sieg" : res === "draw" ? "Remis" : "Niederlage"}</span>
                 </button>
