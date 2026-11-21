@@ -18,6 +18,10 @@ export interface Settings {
   legalMoves: boolean;
   animation: boolean;
   autoQueen: boolean;
+  /** Puzzles: nach sauber gelöstem Puzzle automatisch das nächste laden. */
+  autoNext: boolean;
+  /** Vibration bei Puzzle-Feedback (nur wo der Browser es unterstützt). */
+  haptics: boolean;
 }
 
 const DEFAULTS: Settings = {
@@ -28,6 +32,8 @@ const DEFAULTS: Settings = {
   legalMoves: true,
   animation: true,
   autoQueen: false,
+  autoNext: false,
+  haptics: true,
 };
 
 const KEY = "chessy.settings";

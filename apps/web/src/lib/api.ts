@@ -106,7 +106,7 @@ const remoteApi = {
     daily: () => request<PuzzlePublic & { daily: string }>("GET", "/puzzles/daily", undefined, false),
     get: (id: string) => request<PuzzlePublic>("GET", `/puzzles/${id}`),
     check: (id: string, moves: string[]) => request<CheckResponse>("POST", `/puzzles/${id}/check`, { moves }),
-    hint: (id: string, solved: number) => request<{ square: string | null }>("POST", `/puzzles/${id}/hint`, { solved }),
+    hint: (id: string, solved: number, level: 1 | 2 = 1) => request<{ square: string | null; to: string | null }>("POST", `/puzzles/${id}/hint`, { solved, level }),
     solution: (id: string) => request<{ moves: string[]; themes: PuzzleTheme[]; rating?: CheckResponse["rating"] }>("POST", `/puzzles/${id}/solution`),
     stats: () => request<PuzzleStats>("GET", "/puzzles/stats"),
     storm: (count = 60) => request<Puzzle[]>("GET", `/puzzles/storm?count=${count}`, undefined, false),

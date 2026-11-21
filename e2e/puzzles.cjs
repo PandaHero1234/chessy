@@ -44,9 +44,9 @@ const byId = new Map(puzzles.map((p) => [p.id, p]));
   let p = byId.get(await currentId());
   console.log("Puzzle:", p.id, "Rating", p.rating, "Lösungszüge", Math.floor(p.moves.length / 2));
   await solve(p);
-  await page.waitForSelector(".puzzle-status.good >> text=Gelöst");
+  await page.waitForSelector(".puzzle-statusbar.good >> text=Gelöst");
   await page.waitForTimeout(300);
-  console.log("Gelöst, Rating-Änderung:", (await page.textContent(".rating-delta").catch(() => "–")).trim(), "| Themen:", await page.$$eval(".theme-tags .badge", (e) => e.map((x) => x.textContent).join(", ")));
+  console.log("Gelöst, Rating-Änderung:", ((await page.locator(".rating-delta").first().textContent({ timeout: 1000 }).catch(() => "–")) || "–").trim(), "| Themen:", await page.$$eval(".theme-tags .badge", (e) => e.map((x) => x.textContent).join(", ")));
   await page.screenshot({ path: "screenshots/p1-solved.png" });
 
   // --- Weiter: falscher Zug, Tipp, Lösung
@@ -58,8 +58,8 @@ const byId = new Map(puzzles.map((p) => [p.id, p]));
   start.move({ from: p.moves[0].slice(0, 2), to: p.moves[0].slice(2, 4), promotion: p.moves[0][4] });
   const wrong = start.moves({ verbose: true }).map((m) => m.from + m.to + (m.promotion || "")).find((u) => u !== p.moves[1] && !u[4]);
   await move(wrong);
-  await page.waitForSelector(".puzzle-status.bad");
-  console.log("Falscher Zug erkannt:", await page.textContent(".puzzle-status-title"));
+  await page.waitForSelector(".puzzle-statusbar.bad");
+  console.log("Falscher Zug erkannt:", await page.textContent(".ps-title"));
   await waitPlay().catch(() => undefined);
   await page.waitForTimeout(900);
   await page.click("text=💡 Tipp");
@@ -67,19 +67,20 @@ const byId = new Map(puzzles.map((p) => [p.id, p]));
   console.log("Tipp markiert Feld:", await page.$eval(".sq-mark.hint", (e) => e.parentElement.dataset.square), "(erwartet", p.moves[1].slice(0, 2) + ")");
   await page.screenshot({ path: "screenshots/p2-hint.png" });
   await page.click("text=👁 Lösung");
-  await page.waitForSelector("text=Lösung angezeigt", { timeout: 20000 });
-  console.log("Lösung angezeigt");
+  await page.waitForSelector("[data-phase='failed']", { timeout: 20000 });
+  await page.waitForSelector(".arrow.good", { state: "attached" });
+  console.log("Lösung angezeigt:", (await page.locator(".sol-move").allTextContents()).join(" "));
 
   // --- Tagespuzzle
   await page.click(".puzzle-tabs >> text=Tagespuzzle");
   await page.waitForSelector("text=Tagespuzzle vom");
   const daily = byId.get(await currentId());
   await solve(daily);
-  await page.waitForSelector(".puzzle-status.good >> text=Gelöst");
+  await page.waitForSelector(".puzzle-statusbar.good >> text=Gelöst");
   console.log("Tagespuzzle gelöst:", daily.id);
 
   // --- Puzzle-Sturm: zwei Puzzles lösen, dann ein Fehler
-  await page.click(".puzzle-tabs >> text=Puzzle-Sturm");
+  await page.click(".puzzle-tabs >> text=Sturm");
   await page.waitForSelector(".storm-score");
   let prev = null;
   for (let k = 0; k < 2; k++) {
@@ -99,7 +100,7 @@ const byId = new Map(puzzles.map((p) => [p.id, p]));
   await page.goto(base + "/");
   await page.click(".mode-card:has-text('Lokal')");
   await page.click(".tc-chips >> text=∞");
-  await page.click("button:has-text('Spielen')");
+  await page.click(".start-btn");
   await page.waitForURL(/\/game\//);
   await page.waitForSelector(".board-column [data-square='e2']");
   for (const m of ["e2e4", "e7e5", "f1c4", "b8c6", "d1h5", "g8f6", "h5f7"]) {
@@ -119,13 +120,13 @@ const byId = new Map(puzzles.map((p) => [p.id, p]));
   await waitPlay();
   console.log("Puzzle aus eigener Partie geladen:", await page.textContent(".puzzle-panel .muted.small:has-text('Puzzle')"));
   await move("h5f7");
-  await page.waitForSelector(".puzzle-status.good >> text=Gelöst");
+  await page.waitForSelector(".puzzle-statusbar.good >> text=Gelöst");
   console.log("Eigenes Puzzle gelöst (Dxf7#)");
   await page.screenshot({ path: "screenshots/p4-mine.png" });
 
   const m = await browser.newPage({ viewport: { width: 390, height: 844 }, isMobile: true });
   await m.goto(base + "/puzzles");
-  await m.waitForSelector(".puzzle-panel .rating-card");
+  await m.waitForSelector(".puzzle-statusbar .ps-rating");
   await m.waitForTimeout(800);
   await m.screenshot({ path: "screenshots/p5-mobile.png", fullPage: true });
   console.log("Mobil horizontaler Overflow:", await m.evaluate(() => document.documentElement.scrollWidth > innerWidth));

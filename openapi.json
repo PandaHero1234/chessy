@@ -3030,7 +3030,7 @@
     },
     "/api/v1/puzzles/{id}/hint": {
       "post": {
-        "summary": "Tipp: Startfeld des nächsten Lösungszugs. Mit Tipp gelöst zählt ohne Rating-Änderung.",
+        "summary": "Tipp: Startfeld des nächsten Lösungszugs, mit `level: 2` zusätzlich das Zielfeld. Mit Tipp gelöst zählt ohne Rating-Änderung.",
         "tags": [
           "puzzles"
         ],
@@ -3048,6 +3048,14 @@
                     "type": "integer",
                     "minimum": 0,
                     "default": 0
+                  },
+                  "level": {
+                    "type": "integer",
+                    "enum": [
+                      1,
+                      2
+                    ],
+                    "default": 1
                   }
                 }
               }
@@ -3073,6 +3081,12 @@
                   "type": "object",
                   "properties": {
                     "square": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "to": {
                       "type": [
                         "null",
                         "string"

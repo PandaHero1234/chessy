@@ -36,6 +36,7 @@ Voraussetzung: Node.js ≥ 22.5. SQLite kommt über das eingebaute `node:sqlite`
 | **Regeln** | Matt, Patt, dreifache Wiederholung, 50 Züge, ungenügendes Material, Zeit gegen ungenügendes Material, Abbruch vor dem ersten Zug, Remis- und Rücknahmeangebote |
 | **Brett** | Eigenes Brett: Drag & Drop + Klick, animierte Figuren, Pfeile/Kreise per Rechtsklick, Umwandlungsauswahl, 6 Farbschemata, Sounds |
 | **Puzzles** | Selbst erzeugte Puzzles in 5 Stufen (Einsteiger bis Meister) oder adaptiv nach eigenem Elo-Rating, 25+ Themen (Gabel, Fesselung, Grundreihenmatt …), Tagespuzzle, 3-Minuten-Puzzle-Sturm, Puzzles aus eigenen Partien. Nur Algorithmen + lokaler Stockfish, keine KI-Dienste. Details: [docs/puzzles.md](docs/puzzles.md) |
+| **Smartphone** | Brett, Status und Aktionen passen ohne Scrollen auf einen Bildschirm; Aktionsleiste in Daumenhöhe; Figur schwebt beim Ziehen über dem Finger; als App auf den Startbildschirm legbar (Web-App-Manifest) |
 | **Analyse** | Bewertungsbalken + Hauptvariante (Stockfish), Nachspielen per Pfeiltasten, PGN-Export |
 | **chess.com** | Profil, Ratings, Archive; Partien importieren und analysieren |
 | **Boards** | `BoardAdapter`-Schnittstelle, Terminal-Brett, DGT-E-Board-Adapter (experimentell) |
@@ -129,6 +130,8 @@ npm test           # Vitest: Uhr, Regeln, REST-API, NDJSON-Stream, Lobby, Import
 npm run typecheck
 node e2e/smoke.cjs    # Playwright: Partie gegen Computer, Screenshots (Server muss laufen)
 node e2e/online.cjs   # Playwright: zwei Browser spielen online + Lobby-Paarung
+node e2e/mobile.cjs   # Playwright (Touch, 3 Handygrößen, mit Prüfungen): Brett, Status und Aktionen ohne Scrollen sichtbar,
+                      #   Tipp/Lösung/Weiter, Sturm, Partie, Menü, Tippziele ≥ 44 px (Standard: Pages-Build auf :4000/chessy)
 node e2e/puzzles.cjs  # Playwright: Training, Tipp, Lösung, Tagespuzzle, Sturm, Puzzles aus eigener Partie
                       #   (auch gegen die Pages-Demo: node e2e/puzzles.cjs http://localhost:4000/chessy)
 ```

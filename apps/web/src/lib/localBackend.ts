@@ -221,7 +221,7 @@ export const localApi: Api = {
     daily: () => puzzleCall((s) => s.daily() as ReturnType<PuzzleService["daily"]> & { daily: string }),
     get: (id) => puzzleCall((s, u) => s.get(u, id)),
     check: (id, moves) => puzzleCall((s, u) => s.check(u, id, moves)),
-    hint: (id, solved) => puzzleCall((s, u) => s.hint(u, id, solved)),
+    hint: (id, solved, level = 1) => puzzleCall((s, u) => s.hint(u, id, solved, level)),
     solution: (id) => puzzleCall((s, u) => s.solution(u, id)),
     stats: () => puzzleCall((s, u) => s.stats(u)),
     storm: (count = 60) => puzzleCall((s) => s.storm(count)),

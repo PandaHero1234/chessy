@@ -22,7 +22,11 @@ export interface BoardProps {
   onMove?: (from: string, to: string, promotion?: string) => void;
   /** Hervorgehobene Felder, z. B. Tipp oder Richtig/Falsch-Feedback bei Puzzles. */
   marks?: { square: string; kind: "hint" | "good" | "bad" }[];
+  /** Von außen vorgegebene Pfeile, z. B. Tipp-Ziel oder Lösungszug. */
+  shapes?: { from: string; to: string; kind: "hint" | "good" | "bad" }[];
 }
+
+const SHAPE_COLORS = { user: "rgba(21, 128, 61, .85)", hint: "rgba(58, 123, 213, .9)", good: "rgba(34, 160, 70, .9)", bad: "rgba(214, 69, 69, .9)" } as const;
 
 const FILES = "abcdefgh";
 const PROMO_PIECES = ["q", "n", "r", "b"] as const;
@@ -82,14 +86,14 @@ interface Arrow {
   to: string;
 }
 
-export function Board({ fen, orientation, lastMove, check, movable, dests, onMove, marks }: BoardProps) {
+export function Board({ fen, orientation, lastMove, check, movable, dests, onMove, marks, shapes }: BoardProps) {
   const settings = useSettings();
   const theme = BOARD_THEMES[settings.boardTheme];
   const boardRef = useRef<HTMLDivElement>(null);
   const piecesRef = useRef<PlacedPiece[]>([]);
   const fenRef = useRef<string>("");
   const [selected, setSelected] = useState<string | null>(null);
-  const [drag, setDrag] = useState<{ square: string; id: number; x: number; y: number; started: boolean } | null>(null);
+  const [drag, setDrag] = useState<{ square: string; id: number; x: number; y: number; started: boolean; touch: boolean; size: number; over: string | null } | null>(null);
   const [instantId, setInstantId] = useState<number | null>(null);
   const [promo, setPromo] = useState<{ from: string; to: string; color: "w" | "b" } | null>(null);
   const [arrows, setArrows] = useState<Arrow[]>([]);
@@ -170,7 +174,7 @@ export function Board({ fen, orientation, lastMove, check, movable, dests, onMov
     if (canMove(sq)) {
       const rect = boardRef.current!.getBoundingClientRect();
       setSelected(sq);
-      setDrag({ square: sq, id: pieceAt.get(sq)!.id, x: e.clientX - rect.left, y: e.clientY - rect.top, started: false });
+      setDrag({ square: sq, id: pieceAt.get(sq)!.id, x: e.clientX - rect.left, y: e.clientY - rect.top, started: false, touch: e.pointerType === "touch", size: rect.width / 8, over: sq });
       e.currentTarget.setPointerCapture?.(e.pointerId);
     } else setSelected(null);
   };
@@ -181,7 +185,7 @@ export function Board({ fen, orientation, lastMove, check, movable, dests, onMov
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
     const moved = drag.started || Math.hypot(x - drag.x, y - drag.y) > 4;
-    setDrag({ ...drag, x, y, started: moved });
+    setDrag({ ...drag, x, y, started: moved, over: squareFromPoint(e.clientX, e.clientY) });
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
@@ -234,6 +238,7 @@ export function Board({ fen, orientation, lastMove, check, movable, dests, onMov
           {check === sq && <div className="check-glow" />}
           {settings.legalMoves && highlightDests.includes(sq) && <div className={pieceAt.has(sq) ? "hint capture" : "hint"} />}
           {circles.includes(sq) && <div className="mark-circle" />}
+          {drag?.started && drag.touch && drag.over === sq && sq !== drag.square && <div className="drop-target" />}
           {marks?.filter((m) => m.square === sq).map((m) => <div key={m.kind} className={`sq-mark ${m.kind}`} />)}
         </div>,
       );
@@ -257,7 +262,14 @@ export function Board({ fen, orientation, lastMove, check, movable, dests, onMov
           const { col, row } = toXY(p.square);
           const dragging = drag?.started && drag.id === p.id;
           const style: React.CSSProperties = dragging
-            ? { transform: `translate(calc(${drag.x}px - 50%), calc(${drag.y}px - 50%)) scale(1.12)`, zIndex: 10, transition: "none" }
+            ? {
+                // Am Touchscreen schwebt die Figur vergrößert über dem Finger, damit er sie nicht verdeckt.
+                transform: drag.touch
+                  ? `translate(calc(${drag.x}px - 50%), calc(${drag.y - drag.size * 0.95}px - 50%)) scale(1.9)`
+                  : `translate(calc(${drag.x}px - 50%), calc(${drag.y}px - 50%)) scale(1.12)`,
+                zIndex: 10,
+                transition: "none",
+              }
             : {
                 transform: `translate(${col * 100}%, ${row * 100}%)`,
                 transition: !animate || instantId === p.id ? "none" : undefined,
@@ -267,11 +279,13 @@ export function Board({ fen, orientation, lastMove, check, movable, dests, onMov
       </div>
       <svg className="arrows" viewBox="0 0 8 8">
         <defs>
-          <marker id="arrowhead" markerWidth="4" markerHeight="4" refX="2.05" refY="2" orient="auto">
-            <path d="M0,0 L4,2 L0,4 z" fill="rgba(21, 128, 61, .85)" />
-          </marker>
+          {(Object.keys(SHAPE_COLORS) as (keyof typeof SHAPE_COLORS)[]).map((k) => (
+            <marker key={k} id={`arrowhead-${k}`} markerWidth="4" markerHeight="4" refX="2.05" refY="2" orient="auto">
+              <path d="M0,0 L4,2 L0,4 z" fill={SHAPE_COLORS[k]} />
+            </marker>
+          ))}
         </defs>
-        {arrows.map((a) => {
+        {[...arrows.map((a) => ({ ...a, kind: "user" as const })), ...(shapes ?? [])].map((a) => {
           const s = toXY(a.from);
           const t = toXY(a.to);
           const x1 = s.col + 0.5;
@@ -280,15 +294,16 @@ export function Board({ fen, orientation, lastMove, check, movable, dests, onMov
           const k = (len - 0.45) / len;
           return (
             <line
-              key={a.from + a.to}
+              key={a.kind + a.from + a.to}
+              className={`arrow ${a.kind}`}
               x1={x1}
               y1={y1}
               x2={x1 + (t.col - s.col) * k}
               y2={y1 + (t.row - s.row) * k}
-              stroke="rgba(21, 128, 61, .85)"
-              strokeWidth={0.17}
+              stroke={SHAPE_COLORS[a.kind]}
+              strokeWidth={a.kind === "user" ? 0.17 : 0.2}
               strokeLinecap="round"
-              markerEnd="url(#arrowhead)"
+              markerEnd={`url(#arrowhead-${a.kind})`}
             />
           );
         })}

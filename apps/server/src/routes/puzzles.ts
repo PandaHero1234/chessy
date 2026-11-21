@@ -162,13 +162,16 @@ export function registerPuzzleRoutes(
       preHandler: auth,
       schema: {
         tags: ["puzzles"],
-        summary: "Tipp: Startfeld des nächsten Lösungszugs. Mit Tipp gelöst zählt ohne Rating-Änderung.",
+        summary: "Tipp: Startfeld des nächsten Lösungszugs, mit `level: 2` zusätzlich das Zielfeld. Mit Tipp gelöst zählt ohne Rating-Änderung.",
         params: idParam,
-        body: { type: ["object", "null"], properties: { solved: { type: "integer", minimum: 0, default: 0 } } },
-        response: { 200: { type: "object", properties: { square: { type: ["string", "null"] } } }, ...errorResponses },
+        body: { type: ["object", "null"], properties: { solved: { type: "integer", minimum: 0, default: 0 }, level: { type: "integer", enum: [1, 2], default: 1 } } },
+        response: { 200: { type: "object", properties: { square: { type: ["string", "null"] }, to: { type: ["string", "null"] } } }, ...errorResponses },
       },
     },
-    async (req) => wrap(() => puzzles.hint(req.user.id, (req.params as { id: string }).id, (req.body as { solved?: number } | null)?.solved ?? 0)),
+    async (req) => {
+      const body = req.body as { solved?: number; level?: 1 | 2 } | null;
+      return wrap(() => puzzles.hint(req.user.id, (req.params as { id: string }).id, body?.solved ?? 0, body?.level ?? 1));
+    },
   );
 
   app.post(

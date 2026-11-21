@@ -15,10 +15,10 @@ const out = (n) => `screenshots/${n}.png`;
   await page.screenshot({ path: out("01-home"), fullPage: true });
 
   // Gegen Computer, Stufe 1, 5+3, Weiß
-  await page.click("text=Computer");
+  await page.click(".mode-card:has-text('Computer')");
   await page.click(".tc-chips >> text=5 | 3");
   await page.click(".segmented >> text=Weiß");
-  await page.click("button:has-text('Spielen')");
+  await page.click(".start-btn");
   await page.waitForURL(/\/game\//);
   await page.waitForSelector(".board-column .board");
 

@@ -12,6 +12,7 @@ import { live } from "../lib/live.ts";
 import { play } from "../lib/sound.ts";
 import { navigate } from "../lib/router.ts";
 import { pieceUrl } from "../lib/paths.ts";
+import { sanDe } from "../lib/notation.ts";
 import { useAccount, useToast } from "../App.tsx";
 
 const PIECE_VALUE: Record<string, number> = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 };
@@ -88,6 +89,7 @@ export function GamePage({ id }: { id: string }) {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [mining, setMining] = useState(false);
+  const stripRef = useRef<HTMLDivElement>(null);
   const prevMoves = useRef<number | null>(null);
   const prevStatus = useRef<string | null>(null);
 
@@ -158,6 +160,13 @@ export function GamePage({ id }: { id: string }) {
       cancelled = true;
     };
   }, [engineOn, engineAllowed, viewFen]);
+
+  // Handy-Zugleiste: aktuellen Zug in die Mitte rücken.
+  useEffect(() => {
+    const box = stripRef.current;
+    const el = box?.querySelector<HTMLElement>(".mvs.current") ?? (box?.lastElementChild as HTMLElement | null);
+    if (box && el) box.scrollLeft = el.offsetLeft - box.offsetLeft - (box.clientWidth - el.offsetWidth) / 2;
+  });
 
   // Tastatur: ← → zum Navigieren, F zum Drehen.
   useEffect(() => {
@@ -290,6 +299,30 @@ export function GamePage({ id }: { id: string }) {
       <div className="game-layout">
         <div className="board-column">
           {playerBar(top)}
+          {opponentOffer(game.draw_offer) && (
+            <div className="offer">
+              <span>Remis angeboten</span>
+              <button className="btn small primary" onClick={() => act(() => api.draw(game.id, "accept"))}>
+                Annehmen
+              </button>
+              <button className="btn small ghost" onClick={() => act(() => api.draw(game.id, "decline"))}>
+                Ablehnen
+              </button>
+            </div>
+          )}
+          {opponentOffer(game.takeback_offer) && (
+            <div className="offer">
+              <span>Zugrücknahme gewünscht</span>
+              <button className="btn small primary" onClick={() => act(() => api.takeback(game.id, "accept"))}>
+                Erlauben
+              </button>
+              <button className="btn small ghost" onClick={() => act(() => api.takeback(game.id, "decline"))}>
+                Ablehnen
+              </button>
+            </div>
+          )}
+          {game.draw_offer && game.draw_offer === myColor && <div className="offer muted">Remisangebot gesendet…</div>}
+
           <div className="board-wrap">
             {engineOn && engineAllowed && <EvalBar analysis={analysis} orientation={orientation} />}
             <Board
@@ -335,6 +368,15 @@ export function GamePage({ id }: { id: string }) {
             )}
           </div>
           {playerBar(bottom)}
+          <div className="move-strip" ref={stripRef}>
+            {timeline.san.length === 0 && <span className="muted small">Noch keine Züge</span>}
+            {timeline.san.map((m, i) => (
+              <button key={i} className={`mvs ${ply === i + 1 ? "current" : ""}`} onClick={() => setViewPly(i + 1 >= timeline.san.length ? null : i + 1)}>
+                {i % 2 === 0 && <span className="sol-num">{i / 2 + 1}.</span>}
+                {sanDe(m)}
+              </button>
+            ))}
+          </div>
         </div>
 
         <aside className="side-panel glass">
@@ -350,30 +392,6 @@ export function GamePage({ id }: { id: string }) {
             </div>
             {isOver && <div className="result-pill">{game.result}</div>}
           </div>
-
-          {opponentOffer(game.draw_offer) && (
-            <div className="offer">
-              <span>Remis angeboten</span>
-              <button className="btn small primary" onClick={() => act(() => api.draw(game.id, "accept"))}>
-                Annehmen
-              </button>
-              <button className="btn small ghost" onClick={() => act(() => api.draw(game.id, "decline"))}>
-                Ablehnen
-              </button>
-            </div>
-          )}
-          {opponentOffer(game.takeback_offer) && (
-            <div className="offer">
-              <span>Zugrücknahme gewünscht</span>
-              <button className="btn small primary" onClick={() => act(() => api.takeback(game.id, "accept"))}>
-                Erlauben
-              </button>
-              <button className="btn small ghost" onClick={() => act(() => api.takeback(game.id, "decline"))}>
-                Ablehnen
-              </button>
-            </div>
-          )}
-          {game.draw_offer && game.draw_offer === myColor && <div className="offer muted">Remisangebot gesendet…</div>}
 
           <MoveList san={timeline.san} viewPly={ply} onSelect={(p) => setViewPly(p >= timeline.san.length ? null : p)} />
 
@@ -463,6 +481,39 @@ export function GamePage({ id }: { id: string }) {
         </aside>
       </div>
 
+      <div className="game-bar">
+        <BarButton icon="◀" label="Zurück" onClick={() => setViewPly(Math.max(0, ply - 1))} disabled={ply === 0} />
+        <BarButton icon="▶" label="Vor" onClick={() => setViewPly(ply + 1 >= timeline.san.length ? null : ply + 1)} disabled={atLive} />
+        {!isOver && playing && game.status === "started" ? (
+          <>
+            <BarButton icon="⇅" label="Drehen" onClick={() => setFlipped((f) => !f)} />
+            {timeline.san.length < 2 && !isLocal ? (
+              <BarButton icon="✕" label="Abbrechen" onClick={() => act(() => api.abort(game.id))} />
+            ) : (
+              <>
+                <BarButton icon="↶" label="Rücknahme" onClick={() => act(() => api.takeback(game.id, "offer"))} disabled={timeline.san.length === 0} />
+                {!isLocal && <BarButton icon="½" label="Remis" onClick={() => act(() => api.draw(game.id, "offer"))} />}
+              </>
+            )}
+            {confirmResign ? (
+              <BarButton icon="⚑" label="Sicher?" danger onClick={() => (setConfirmResign(false), act(() => api.resign(game.id)))} onBlur={() => setConfirmResign(false)} />
+            ) : (
+              <BarButton icon="⚑" label="Aufgeben" onClick={() => setConfirmResign(true)} />
+            )}
+          </>
+        ) : (
+          <>
+            <BarButton icon="⇅" label="Drehen" onClick={() => setFlipped((f) => !f)} />
+            {engineAllowed && <BarButton icon="⚙" label="Analyse" active={engineOn} onClick={() => setEngineOn((v) => !v)} />}
+            {isOver && playing && game.status === "ended" && timeline.san.length >= 6 && (
+              <BarButton icon="🧩" label={mining ? "Suche …" : "Puzzles"} onClick={findPuzzles} disabled={mining} />
+            )}
+            {isOver && <BarButton icon="⤓" label="PGN" onClick={() => downloadPgn(game)} />}
+            {isOver && game.source === "live" && playing && <BarButton icon="↻" label="Neu" primary onClick={rematch} />}
+          </>
+        )}
+      </div>
+
       {showResult && isOver && (
         <div className="modal-backdrop" onClick={() => setShowResult(false)}>
           <div className="modal glass" onClick={(e) => e.stopPropagation()}>
@@ -504,6 +555,15 @@ export function GamePage({ id }: { id: string }) {
   }
 }
 
+function BarButton({ icon, label, primary, danger, active, ...rest }: { icon: string; label: string; primary?: boolean; danger?: boolean; active?: boolean } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button className={`bar-btn ${primary ? "primary" : ""} ${danger ? "danger" : ""} ${active ? "on" : ""}`} {...rest}>
+      <span className="bar-icon">{icon}</span>
+      <span className="bar-label">{label}</span>
+    </button>
+  );
+}
+
 function downloadPgn(game: GameSnapshot) {
   const url = URL.createObjectURL(new Blob([game.pgn], { type: "application/x-chess-pgn" }));
   const a = document.createElement("a");
@@ -538,7 +598,7 @@ function pvToSan(fen: string, pv: string[]) {
   for (const m of pv) {
     try {
       const mv = c.move({ from: m.slice(0, 2), to: m.slice(2, 4), promotion: m[4] });
-      out.push(mv.san);
+      out.push(sanDe(mv.san));
     } catch {
       break;
     }
