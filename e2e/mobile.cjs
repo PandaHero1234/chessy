@@ -78,9 +78,17 @@ async function run(size, browser) {
   // ---------- Tipp in zwei Stufen
   let p = byId.get(await curId());
   await page.locator(".action-bar button", { hasText: "Tipp" }).tap();
-  await page.waitForSelector(".sq-mark.hint");
-  ok((await vis(".sq-mark.hint", ".action-bar")) === 100, "Tipp: markierte Figur ist im Bild");
-  ok((await page.$eval(".sq-mark.hint", (e) => e.parentElement.dataset.square)) === p.moves[1].slice(0, 2), "Tipp: richtige Figur markiert");
+  await page.waitForSelector(".sq-mark-hint");
+  ok((await vis(".sq-mark-hint", ".action-bar")) === 100, "Tipp: markierte Figur ist im Bild");
+  ok((await page.$eval(".sq-mark-hint", (e) => e.parentElement.dataset.square)) === p.moves[1].slice(0, 2), "Tipp: richtige Figur markiert");
+  // Die Markierung muss das ganze Feld füllen (früher schrumpfte sie zu einem Punkt unter der Figur).
+  const hintBox = await page.locator(".sq-mark-hint").boundingBox();
+  const sqBox = await page.locator(`.puzzle-stage [data-square="${p.moves[1].slice(0, 2)}"]`).boundingBox();
+  ok(hintBox.width >= sqBox.width - 1 && hintBox.height >= sqBox.height - 1, "Tipp: ganzes Feld leuchtet auf", `${Math.round(hintBox.width)}×${Math.round(hintBox.height)} von ${Math.round(sqBox.width)}`);
+  const hintColor = await page.$eval(".sq-mark-hint", (e) => getComputedStyle(e).backgroundColor);
+  const [r, , b, alpha = 1] = hintColor.match(/[\d.]+/g).map(Number);
+  ok(b > 200 && b > r && alpha > 0.6, "Tipp: Feld ist kräftig blau hervorgehoben", hintColor);
+  await shot("2a-tipp-feld");
   await page.locator(".action-bar button", { hasText: "Zielfeld" }).tap();
   await page.waitForSelector(".arrow.hint", { state: "attached" });
   ok(true, "Tipp Stufe 2: Pfeil zum Zielfeld");
