@@ -12,9 +12,9 @@ export function registerPuzzleRoutes(
   deps: { puzzles: PuzzleService; games: GameService; miner: Analyzer; auth: (req: FastifyRequest) => Promise<void> },
 ) {
   const { puzzles, auth } = deps;
-  const wrap = <T>(fn: () => T): T => {
+  const wrap = async <T>(fn: () => T | Promise<T>): Promise<T> => {
     try {
-      return fn();
+      return await fn();
     } catch (e) {
       if (e instanceof PuzzleError) throw new ApiError(e.statusCode, e.code, e.message);
       throw e;
@@ -217,7 +217,7 @@ export function registerPuzzleRoutes(
           deps.miner,
           { scanNodes: 80_000, solveNodes: 400_000, minPly: 4 },
         );
-        return { found: found.length, puzzles: found.map((p) => wrap(() => puzzles.get(req.user.id, p.id))) };
+        return { found: found.length, puzzles: await Promise.all(found.map((p) => wrap(() => puzzles.get(req.user.id, p.id)))) };
       } finally {
         running.delete(req.user.id);
       }

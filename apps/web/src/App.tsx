@@ -96,10 +96,16 @@ export function App() {
                 </a>
               ))}
             </nav>
-            <div className="account-chip" title={online ? "Verbunden" : "Verbindung getrennt"}>
+            <a
+              className="account-chip"
+              href={href("/settings")}
+              onClick={onLinkClick}
+              title={`${online ? "Verbunden" : "Verbindung getrennt"} · ${account?.kind === "user" ? "Angemeldet" : "Gast – Konto in den Einstellungen"}`}
+            >
               <span className={`status-dot ${online ? "on" : "off"}`} />
               <span className="account-name">{account?.username ?? "…"}</span>
-            </div>
+              {!STATIC && account?.kind === "guest" && <span className="chip-login">Anmelden</span>}
+            </a>
             <button className="menu-btn" aria-label="Menü" aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)}>
               {menuOpen ? "✕" : "☰"}
             </button>

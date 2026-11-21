@@ -26,6 +26,10 @@ const THEME_ORDER: PuzzleTheme[] = [
   "mateIn1", "mateIn2", "mateIn3", "mateIn4", "mateIn5", "backRankMate", "smotheredMate", "fork", "pin", "skewer", "discoveredAttack",
   "doubleCheck", "sacrifice", "hangingPiece", "quietMove", "promotion", "underPromotion", "enPassant", "opening", "middlegame", "endgame",
   "oneMove", "short", "long", "veryLong",
+  "attraction", "deflection", "intermezzo", "zugzwang", "xRayAttack", "capturingDefender", "trappedPiece", "clearance", "interference", "defensiveMove",
+  "exposedKing", "kingsideAttack", "queensideAttack", "advancedPawn", "attackingF2F7", "castling", "equality",
+  "pawnEndgame", "rookEndgame", "queenEndgame", "bishopEndgame", "knightEndgame", "queenRookEndgame",
+  "anastasiaMate", "arabianMate", "bodenMate", "doubleBishopMate", "dovetailMate", "hookMate",
 ];
 
 const FILTER_KEY = "chessy.puzzleFilter";

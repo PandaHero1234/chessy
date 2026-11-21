@@ -1,8 +1,11 @@
 # Schach-Puzzles: wie sie entstehen
 
-Chessy erzeugt seine Puzzles selbst, mit nachvollziehbaren Algorithmen, ohne KI-Dienste und ohne API-Keys.
+Chessy hat einen eigenen Puzzle-Generator mit nachvollziehbaren Algorithmen, ohne KI-Dienste und ohne API-Keys.
 Die einzige „Intelligenz“ ist Stockfish, der auch als Computergegner dient und lokal läuft
 (Server: Kindprozess, Pages-Demo: WebAssembly im Browser).
+
+Die ausgelieferte Sammlung besteht aus den selbst erzeugten Puzzles und einer geprüften Auswahl aus der offenen
+Lichess-Puzzle-Datenbank, zusammen 102.400 Puzzles (siehe [Die ausgelieferte Sammlung](#die-ausgelieferte-sammlung)).
 
 > Stockfish bewertet Stellungen intern mit einem kleinen neuronalen Netz (NNUE). Das ist Teil der Engine
 > selbst, läuft offline und braucht keinen externen Dienst.
@@ -30,7 +33,7 @@ Wie die offene [Lichess-Puzzle-Datenbank](https://database.lichess.org/#puzzles)
    - **Greifbarer Gewinn:** Ohne Matt muss nach der besten Antwort des Gegners mindestens 2 Bauerneinheiten Material gewonnen sein. Reine Stellungsvorteile werden verworfen.
    - **Gegenprüfung:** Der erste Zug wird mit 2 Mio. Knoten erneut geprüft und muss eindeutig bleiben.
    - Eine billige Vorprüfung (1/5 der Knoten) verwirft offensichtlich mehrdeutige Kandidaten früh.
-4. **Bauen** (`--build`): Doppelte Stellungen entfernen, Themen und Rating aus den gespeicherten Merkmalen neu berechnen, `packages/puzzles/data/puzzles.json` und [`docs/puzzles-report.md`](puzzles-report.md) schreiben.
+4. **Bauen** (`--build`): Doppelte Stellungen entfernen, Themen und Rating aus den gespeicherten Merkmalen neu berechnen, `packages/puzzles/data/puzzles.json` und [`docs/puzzles-generator-report.md`](puzzles-generator-report.md) schreiben. Danach packt `npm run puzzles:pack` die Sammlung neu in Rating-Bänder.
 
 Der Generator ist fortsetzbar: Funde landen sofort in `puzzles.raw.jsonl` (mit Merkmalen), ein Abbruch kostet nichts.
 
@@ -113,11 +116,41 @@ curl -s -X POST localhost:3000/api/v1/puzzles/$(echo $P | jq -r .id)/check \
   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -d '{"moves":["e2e4"]}'
 ```
 
-## Aktueller Stand und Grenzen
+## Die ausgelieferte Sammlung
 
-Die ausgelieferte Sammlung umfasst **1024 Puzzles** aus 128 Selbstspiel-Partien (98 Minuten auf 4 Kernen). Verteilung, Themen und Lösungslängen stehen in [puzzles-report.md](puzzles-report.md). Verworfen wurden 7820 Kandidaten wegen mehrdeutiger Lösung, 839 ohne greifbaren Materialgewinn und 57 in der Gegenprüfung. 1024 sehr leichte Funde fielen der Quote zum Opfer.
+**102.400 Puzzles** in 26 Rating-Bändern. Verteilung, Themen und Lösungslängen stehen in [puzzles-report.md](puzzles-report.md).
 
-- **Schwere Stufen sind dünn besetzt** (Schwer 9, Meister 1). Im Selbstspiel entstehen selten tiefe, eindeutige Kombinationen. Die Ratings bleiben bewusst unverändert, statt sie künstlich anzuheben.
-  - Mehr schwere Puzzles bringt ein längerer Generatorlauf; die Mattangriff-Suche liefert die meisten.
-  - Alternativ lässt sich die Lichess-Datenbank importieren, das Format ist kompatibel.
-- **Startratings sind Schätzungen.** Auf dem Server gleichen echte Lösungsversuche die Puzzle-Ratings per Elo an.
+| Quelle | Anzahl | |
+|---|---|---|
+| Eigener Generator | 1.024 | Stockfish-Selbstspiel wie oben beschrieben, Details in [puzzles-generator-report.md](puzzles-generator-report.md) |
+| [Lichess-Puzzle-Datenbank](https://database.lichess.org/#puzzles) | 101.376 | Gemeinfrei (CC0), ohne API-Key. Lichess erzeugt sie ebenfalls mit Stockfish aus echten Partien; die Ratings stammen aus Millionen Lösungsversuchen. |
+
+### Auswahl aus der Lichess-Datenbank (`npm run puzzles:pack`)
+
+1. **Qualitätsfilter:** mindestens 200 Lösungsversuche, Beliebtheit ≥ 80, Rating-Abweichung ≤ 90. Das bestehen 3,29 von 6,19 Millionen Puzzles.
+2. **Verteilung:** Einsteiger 15 %, Leicht 25 %, Mittel 25 %, Schwer 22 %, Meister 13 %. Innerhalb einer Stufe bekommt jedes 100-Punkte-Band gleich viele Puzzles.
+3. **Reproduzierbar:** Je Band gewinnen die Puzzles mit dem kleinsten Hash der ID. Derselbe Datenbankstand ergibt dieselbe Auswahl.
+4. **Nachprüfung:** Jede Zugfolge wird mit chess.js nachgespielt: alle Züge legal, die Lösung endet mit einem eigenen Zug, Matt-Themen enden mit Matt. Von den Kandidaten fiel keiner durch.
+5. **Dünne Bänder:** Ab Rating 2800 gibt es zu wenige Puzzles, die den Filter bestehen (665 und 86 statt je rund 1.660). Die Lücke füllen die übrigen Meister-Bänder.
+
+Die Themen übernimmt der Import von Lichess, soweit Chessy sie kennt (57 Themen, darunter Hinlenkung, Ablenkung, Zwischenzug, Zugzwang und benannte Mattbilder).
+
+### Speicherformat
+
+```
+packages/puzzles/data/
+  index.json        Anzahl je Band, Stufe, Thema und Quelle
+  bands/1500.json   ein Band: kompakte Zeilen [id, fen, "zug zug …", rating, "thema thema …", quelle?]
+  storm.json        feste Auswahl für den Puzzle-Sturm (bis zu 40 kurze Puzzles je Band, 500–2499)
+  daily.json        400 Puzzles für das Tagespuzzle (1300–2100, mindestens 2 Lösungszüge)
+  puzzles.json      die selbst erzeugten Puzzles (Eingabe für puzzles:pack)
+```
+
+- **Server:** lädt beim Start alle Bänder (rund 2 Sekunden, etwa 215 MB Arbeitsspeicher). `next` antwortet in wenigen Millisekunden, weil die Auswahl nur die passenden Bänder ansieht.
+- **Pages-Demo:** Jedes Band ist ein eigener Chunk (rund 0,9 MB, gezippt 0,3 MB) und wird erst geladen, wenn es gebraucht wird. Für ein adaptives Puzzle sind das bis zu drei Bänder um das eigene Rating, für eine feste Stufe eines.
+
+## Grenzen
+
+- **Startratings der eigenen Puzzles sind Schätzungen.** Auf dem Server gleichen echte Lösungsversuche die Puzzle-Ratings per Elo an. Die Lichess-Ratings sind bereits eingespielt.
+- **Die Themen-Erkennung in `themes.ts` läuft nur für eigene Puzzles.** Lichess-Puzzles behalten ihre Lichess-Themen.
+- **Lichess-Daten veralten nicht, wachsen aber.** Ein neuer Import mit einem neueren Datenbankstand ergibt eine andere Auswahl; die IDs bereits gelöster Puzzles können dabei wegfallen.

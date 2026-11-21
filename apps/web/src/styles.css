@@ -1335,7 +1335,8 @@ main {
   width: 42px;
   height: 24px;
   border-radius: 999px;
-  background: var(--panel-strong);
+  /* fester Grauton: Im hellen Design war ein ausgeschalteter Schalter weiß auf weiß und kaum zu erkennen */
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
   border: 1px solid var(--border);
   position: relative;
   transition: background 0.2s;
@@ -1938,12 +1939,13 @@ label {
   }
   .puzzle-panel.sheet {
     position: fixed;
+    top: auto; /* die Seitenleiste setzt sonst top: 84px, dann hinge der Auszug über dem unteren Rand */
     left: 0;
     right: 0;
     bottom: 0;
     z-index: 120;
-    max-height: 84vh;
-    max-height: 84dvh;
+    max-height: 88vh;
+    max-height: 88dvh;
     overflow-y: auto;
     border-radius: 20px 20px 0 0;
     padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
@@ -1980,9 +1982,17 @@ label {
     font-size: 1.1rem;
     cursor: pointer;
   }
+  /* „Fertig“ bleibt am unteren Rand des Auszugs sichtbar, auch wenn der Inhalt länger ist */
   .sheet-done {
-    display: inline-flex;
+    display: flex;
     min-height: 48px;
+    position: sticky;
+    bottom: 0;
+    flex-shrink: 0;
+    /* deckt den Inhalt ab, der unter dem angehefteten Knopf durchscrollt (auch im unteren Randbereich) */
+    box-shadow:
+      0 0 0 12px color-mix(in srgb, var(--bg) 97%, var(--text) 3%),
+      0 28px 0 12px color-mix(in srgb, var(--bg) 97%, var(--text) 3%);
   }
   .storm-panel {
     display: none;
@@ -2296,8 +2306,41 @@ body {
   .tc-group.active .tc-group-label {
     display: none;
   }
-  .tc-chips .chip {
+  .tc-picker .tc-chips .chip {
     flex: 1;
+  }
+  /* Puzzle-Auszug: Schwierigkeiten als ruhiges Zweierraster statt gequetschter Zeile */
+  .puzzle-filters .tc-chips {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .puzzle-filters .tc-chips .chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    white-space: nowrap;
+  }
+  /* Einstellungen: Schalterzeilen in Tippgröße, Auswahl einzeilig */
+  .toggles {
+    gap: 4px;
+  }
+  .toggle {
+    min-height: 44px;
+  }
+  .segmented button {
+    padding: 8px 4px;
+    white-space: nowrap;
+    font-size: 0.92rem;
+  }
+  .theme-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .theme-swatch {
+    padding: 10px 4px;
+    font-size: 0.9rem;
   }
   .play-bar {
     position: fixed;
@@ -2537,6 +2580,122 @@ body {
     font-size: 0.82rem;
   }
   .mode-text {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ Konto */
+.account-chip {
+  text-decoration: none;
+  cursor: pointer;
+}
+.chip-login {
+  margin-left: 2px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.account-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.account-card h2 {
+  margin: 0;
+}
+.account-card p {
+  margin: 0;
+}
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 420px;
+}
+.account-form .btn {
+  align-self: flex-start;
+  min-height: 46px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.field-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.pw-row {
+  display: flex;
+  gap: 6px;
+}
+.pw-row input {
+  flex: 1;
+}
+.pw-toggle {
+  width: 46px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-strong);
+  cursor: pointer;
+  font-size: 1.05rem;
+}
+.form-error {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  font-size: 0.9rem;
+}
+.form-note {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--gold) 14%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent);
+  font-size: 0.88rem;
+}
+.account-tabs {
+  max-width: 420px;
+}
+.account-who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.account-avatar {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent), #3a7bd5);
+  color: #fff;
+  font-weight: 800;
+  font-size: 1.2rem;
+}
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+@media (max-width: 760px) {
+  .account-form,
+  .account-tabs {
+    max-width: none;
+  }
+  .account-form .btn {
+    align-self: stretch;
+  }
+  .account-actions .btn {
+    flex: 1 1 140px;
+  }
+  .chip-login {
     display: none;
   }
 }

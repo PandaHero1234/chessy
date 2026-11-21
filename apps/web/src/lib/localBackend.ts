@@ -1,5 +1,5 @@
 import type { Account, GameSnapshot } from "@chessy/shared";
-import { MemoryPuzzleStore, PuzzleError, PuzzleService, type Puzzle, type PuzzleStore } from "@chessy/puzzles";
+import { MemoryPuzzleStore, PuzzleError, PuzzleService, sourceFromRows, type PoolName, type Puzzle, type PuzzleIndex, type PuzzleRow, type PuzzleStore } from "@chessy/puzzles";
 import { GameService, ApiError as ServiceError } from "../../../server/src/game/service.ts";
 import type { GameStore, StoredUser } from "../../../server/src/game/ports.ts";
 import { BrowserEngine } from "./browserEngine.ts";
@@ -71,13 +71,24 @@ const PUZZLE_KEY = "chessy.demo.puzzles";
 class LocalPuzzleStore extends MemoryPuzzleStore implements PuzzleStore {
   constructor() {
     super();
-    const saved = read<{ users?: [string, never][]; stats?: [string, never][]; own?: [string, Puzzle[]][] }>(PUZZLE_KEY, {});
+    const saved = read<{ users?: [string, never][]; stats?: [string, never][]; own?: [string, Puzzle[]][]; recent?: Puzzle[] }>(PUZZLE_KEY, {});
     this.users = new Map(saved.users ?? []);
     this.stats = new Map(saved.stats ?? []);
     this.own = new Map(saved.own ?? []);
+    this.recent = saved.recent ?? [];
   }
+  /** Zuletzt gezeigte Puzzles: Verlaufs-Links funktionieren so, ohne alle Rating-Bänder nachzuladen. */
+  private recent: Puzzle[];
   private persist() {
-    write(PUZZLE_KEY, { users: [...this.users], stats: [...this.stats], own: [...this.own] });
+    write(PUZZLE_KEY, { users: [...this.users], stats: [...this.stats], own: [...this.own], recent: this.recent });
+  }
+  cachePuzzle(p: Puzzle) {
+    if (this.recent[0]?.id === p.id) return;
+    this.recent = [p, ...this.recent.filter((x) => x.id !== p.id)].slice(0, 60);
+    this.persist();
+  }
+  cachedPuzzle(id: string) {
+    return this.recent.find((p) => p.id === id);
   }
   override saveUser(s: Parameters<MemoryPuzzleStore["saveUser"]>[0]) {
     super.saveUser(s);
@@ -93,10 +104,23 @@ class LocalPuzzleStore extends MemoryPuzzleStore implements PuzzleStore {
   }
 }
 
+// Die Sammlung liegt in Rating-Bändern vor. Vite macht aus jeder Datei einen eigenen Chunk, der erst bei Bedarf geladen wird.
+const bandFiles = import.meta.glob<PuzzleRow[]>("../../../../packages/puzzles/data/bands/*.json", { import: "default" });
+const poolFiles: Record<PoolName, () => Promise<{ default: unknown }>> = {
+  storm: () => import("../../../../packages/puzzles/data/storm.json"),
+  daily: () => import("../../../../packages/puzzles/data/daily.json"),
+};
+
 let puzzleService: Promise<PuzzleService> | null = null;
-/** Die Puzzle-Sammlung wird erst geladen, wenn sie gebraucht wird (eigener Chunk). */
 function puzzlesReady() {
-  puzzleService ??= import("@chessy/puzzles/data").then((m) => new PuzzleService(m.default as Puzzle[], new LocalPuzzleStore()));
+  puzzleService ??= import("../../../../packages/puzzles/data/index.json").then((m) => {
+    const source = sourceFromRows(
+      m.default as PuzzleIndex,
+      (key) => bandFiles[`../../../../packages/puzzles/data/bands/${key}.json`]?.() ?? [],
+      (name) => poolFiles[name]().then((f) => f.default as PuzzleRow[]),
+    );
+    return new PuzzleService(source, new LocalPuzzleStore());
+  });
   return puzzleService;
 }
 
@@ -218,7 +242,7 @@ export const localApi: Api = {
   puzzles: {
     catalog: () => puzzleCall((s) => s.catalog()),
     next: (f = {}) => puzzleCall((s, u) => s.next(u, f)),
-    daily: () => puzzleCall((s) => s.daily() as ReturnType<PuzzleService["daily"]> & { daily: string }),
+    daily: () => puzzleCall((s) => s.daily()),
     get: (id) => puzzleCall((s, u) => s.get(u, id)),
     check: (id, moves) => puzzleCall((s, u) => s.check(u, id, moves)),
     hint: (id, solved, level = 1) => puzzleCall((s, u) => s.hint(u, id, solved, level)),
@@ -236,7 +260,7 @@ export const localApi: Api = {
           solveNodes: 300_000,
           minPly: 4,
         });
-        return { found: found.length, puzzles: found.map((p) => s.get(u, p.id)) };
+        return { found: found.length, puzzles: await Promise.all(found.map((p) => s.get(u, p.id))) };
       }),
   },
 };

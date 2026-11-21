@@ -35,7 +35,7 @@ Voraussetzung: Node.js ≥ 22.5. SQLite kommt über das eingebaute `node:sqlite`
 | **Gegner** | Stockfish in 8 Stufen · Online-Lobby mit Matchmaking · Einladungslink · Lokal (zwei Spieler, ein Gerät) |
 | **Regeln** | Matt, Patt, dreifache Wiederholung, 50 Züge, ungenügendes Material, Zeit gegen ungenügendes Material, Abbruch vor dem ersten Zug, Remis- und Rücknahmeangebote |
 | **Brett** | Eigenes Brett: Drag & Drop + Klick, animierte Figuren, Pfeile/Kreise per Rechtsklick, Umwandlungsauswahl, 6 Farbschemata, Sounds |
-| **Puzzles** | Selbst erzeugte Puzzles in 5 Stufen (Einsteiger bis Meister) oder adaptiv nach eigenem Elo-Rating, 25+ Themen (Gabel, Fesselung, Grundreihenmatt …), Tagespuzzle, 3-Minuten-Puzzle-Sturm, Puzzles aus eigenen Partien. Nur Algorithmen + lokaler Stockfish, keine KI-Dienste. Details: [docs/puzzles.md](docs/puzzles.md) |
+| **Puzzles** | 102.400 Puzzles in 5 Stufen (Einsteiger bis Meister) oder adaptiv nach eigenem Elo-Rating, 57 Themen (Gabel, Fesselung, Zugzwang, Grundreihenmatt …), Tagespuzzle, 3-Minuten-Puzzle-Sturm, Puzzles aus eigenen Partien. Eigener Generator plus geprüfte Auswahl aus der offenen Lichess-Puzzle-Datenbank; keine KI-Dienste, keine API-Keys. Details: [docs/puzzles.md](docs/puzzles.md) |
 | **Smartphone** | Brett, Status und Aktionen passen ohne Scrollen auf einen Bildschirm; Aktionsleiste in Daumenhöhe; Figur schwebt beim Ziehen über dem Finger; als App auf den Startbildschirm legbar (Web-App-Manifest) |
 | **Analyse** | Bewertungsbalken + Hauptvariante (Stockfish), Nachspielen per Pfeiltasten, PGN-Export |
 | **chess.com** | Profil, Ratings, Archive; Partien importieren und analysieren |
@@ -46,7 +46,8 @@ Voraussetzung: Node.js ≥ 22.5. SQLite kommt über das eingebaute `node:sqlite`
 ```
 packages/shared          Typen (GameSnapshot, Events), Zeitmodi + Presets, UCI-/MultiPV-Auswertung
 packages/puzzles         Puzzle-Logik (Server + Browser): Mining, Eindeutigkeit, Themen, Schwierigkeit, Elo, Auswahl
-  data/puzzles.json      Erzeugte Puzzle-Sammlung (npm run puzzles:generate)
+  data/bands/*.json      Sammlung in Rating-Bändern (npm run puzzles:pack), dazu index.json, storm.json, daily.json
+  data/puzzles.json      Selbst erzeugte Puzzles (npm run puzzles:generate)
 apps/server              Fastify: REST, NDJSON-Streams, WebSocket, OpenAPI (/docs), Stockfish-Pool, SQLite
   src/game/clock.ts      Schachuhr (rein, testbar)
   src/game/game.ts       Partie: Regeln (chess.js), Ergebnis, PGN
@@ -81,6 +82,8 @@ curl -X POST localhost:3000/api/v1/games/$GAME/move/e2e4 -H "authorization: Bear
 | Methode | Pfad | Zweck |
 |---|---|---|
 | `POST` | `/api/v1/auth/{guest,bot,board}` | Account + Token |
+| `POST` | `/api/v1/auth/register` · `/auth/login` | Optionales Konto: Gast aufwerten (Fortschritt bleibt) bzw. auf weiterem Gerät anmelden |
+| `POST` | `/api/v1/auth/logout` · `/auth/password` | Abmelden (`{"everywhere": true}` für alle Geräte), Passwort ändern |
 | `GET` | `/api/v1/account` | Eigener Account |
 | `POST` | `/api/v1/games` | Partie: `opponent` = `{type:"ai",level}` · `{type:"local"}` · `{type:"friend"}` |
 | `POST` | `/api/v1/games/{id}/join` | Einladung annehmen |
@@ -102,7 +105,11 @@ Die vollständige, interaktive Doku liegt unter **`/docs`** (Swagger UI), die Sp
 
 ```bash
 npm run puzzles:generate -- --target 1000 --workers 4 --minutes 120   # sammeln (fortsetzbar)
-npm run puzzles:generate -- --build                                   # puzzles.json + docs/puzzles-report.md
+npm run puzzles:generate -- --build                                   # puzzles.json + docs/puzzles-generator-report.md
+
+# Sammlung packen: eigene Puzzles + Auswahl aus der Lichess-Datenbank (https://database.lichess.org/#puzzles)
+npm run puzzles:pack -- --lichess lichess_db_puzzle.csv.zst --total 102400   # Bänder + docs/puzzles-report.md
+npm run puzzles:pack                                                          # nur die eigenen Puzzles
 ```
 
 Wie Fehler gefunden, Lösungen auf Eindeutigkeit geprüft, Themen erkannt und Schwierigkeiten berechnet werden, steht in [docs/puzzles.md](docs/puzzles.md).
@@ -130,6 +137,7 @@ npm test           # Vitest: Uhr, Regeln, REST-API, NDJSON-Stream, Lobby, Import
 npm run typecheck
 node e2e/smoke.cjs    # Playwright: Partie gegen Computer, Screenshots (Server muss laufen)
 node e2e/online.cjs   # Playwright: zwei Browser spielen online + Lobby-Paarung
+node e2e/account.cjs  # Playwright (zwei Geräte): Gast → Konto anlegen → zweites Gerät anmelden → abmelden, Passwort ändern
 node e2e/mobile.cjs   # Playwright (Touch, 3 Handygrößen, mit Prüfungen): Brett, Status und Aktionen ohne Scrollen sichtbar,
                       #   Tipp/Lösung/Weiter, Sturm, Partie, Menü, Tippziele ≥ 44 px (Standard: Pages-Build auf :4000/chessy)
 node e2e/puzzles.cjs  # Playwright: Training, Tipp, Lösung, Tagespuzzle, Sturm, Puzzles aus eigener Partie
@@ -140,6 +148,17 @@ node e2e/puzzles.cjs  # Playwright: Training, Tipp, Lösung, Tagespuzzle, Sturm,
 
 `.github/workflows/pages.yml` baut bei jedem Push auf `main` die statische Demo (`npm run build:pages`) und veröffentlicht sie.
 Einmalig nötig: *Settings → Pages → Source: GitHub Actions*.
+
+## Konten (optional)
+
+Ohne Anmeldung spielt man als Gast: Das Token liegt nur im Browser dieses Geräts. In den **Einstellungen → Konto** kann man:
+
+- **Konto anlegen:** Benutzername und Passwort wählen. Der aktuelle Gast wird zum Konto; Partien, Puzzle-Rating und Verlauf bleiben, der Name wird in alten Partien übernommen.
+- **Anmelden** auf weiteren Geräten, **abmelden** (dieses Gerät oder überall) und das **Passwort ändern** (beendet alle anderen Sitzungen).
+
+Sicherheit: Passwörter werden mit scrypt (N = 2¹⁵, eigenes Salz) gehasht, Sitzungs-Tokens nur als SHA-256-Hash gespeichert.
+Falsche Anmeldungen geben immer dieselbe Meldung und werden nach 10 Fehlversuchen in 15 Minuten (je Name und IP) kurz gesperrt.
+Die Pages-Demo hat keinen Server und deshalb keine Konten; dort bleibt der Fortschritt im Browser.
 
 ## Konfiguration
 
@@ -154,3 +173,4 @@ Einmalig nötig: *Settings → Pages → Source: GitHub Actions*.
 GPL-3.0-or-later (siehe [LICENSE](LICENSE)).
 Stockfish ist GPLv3 (The Stockfish developers, WASM-Build von [nmrugg/stockfish.js](https://github.com/nmrugg/stockfish.js)).
 Figurensatz „cburnett“ von [Colin M.L. Burnett](https://en.wikipedia.org/wiki/User:Cburnett), GPLv2+.
+Ein Großteil der Puzzles stammt aus der [Lichess-Puzzle-Datenbank](https://database.lichess.org/#puzzles), gemeinfrei (CC0).

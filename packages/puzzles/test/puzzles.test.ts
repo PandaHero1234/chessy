@@ -11,10 +11,18 @@ import {
   isUnique,
   puzzleId,
   solveFrom,
+  sourceFromArray,
+  sourceFromRows,
+  buildPack,
+  bandKeyOf,
+  toRow,
+  fromRow,
+  DIFFICULTIES,
   toPublic,
   updateRatings,
   DEFAULT_MINING,
   type Analyzer,
+  type Difficulty,
   type Puzzle,
 } from "../src/index.ts";
 
@@ -168,69 +176,137 @@ describe("Eindeutigkeit & Mining", () => {
 
 describe("PuzzleService", () => {
   const puzzles: Puzzle[] = Array.from({ length: 30 }, (_, i) => ({ ...BACK_RANK, id: `p${i}`, rating: 600 + i * 70 }));
+  const service = (store = new MemoryPuzzleStore(), now?: () => number) => new PuzzleService(sourceFromArray(puzzles), store, now);
 
-  it("adaptiv: wählt Puzzles nahe am eigenen Rating, aktualisiert Rating und Serie", () => {
-    const s = new PuzzleService(puzzles, new MemoryPuzzleStore());
-    const first = s.next("u1");
+  it("adaptiv: wählt Puzzles nahe am eigenen Rating, aktualisiert Rating und Serie", async () => {
+    const s = service();
+    const first = await s.next("u1");
     expect(Math.abs(first.rating - 1200)).toBeLessThanOrEqual(260);
-    const r = s.check("u1", first.id, ["d8d1"]);
+    const r = await s.check("u1", first.id, ["d8d1"]);
     expect(r.status).toBe("solved");
     expect(r.rating!.delta).toBeGreaterThan(0);
     expect(r.solution).toEqual(["a1a7", "d8d1"]);
-    expect(s.stats("u1")).toMatchObject({ attempts: 1, wins: 1, streak: 1 });
+    expect(s.stats("u1")).toMatchObject({ attempts: 1, wins: 1, streak: 1, puzzles_available: 30 });
   });
 
-  it("Fehlversuch zählt einmal, Lösung anzeigen zählt als verloren", () => {
-    const s = new PuzzleService(puzzles, new MemoryPuzzleStore());
-    const p = s.next("u2", { difficulty: "easy" });
+  it("Fehlversuch zählt einmal, Lösung anzeigen zählt als verloren", async () => {
+    const s = service();
+    const p = await s.next("u2", { difficulty: "easy" });
     expect(p.rating).toBeGreaterThanOrEqual(1000);
     expect(p.rating).toBeLessThan(1400);
-    const wrong = s.check("u2", p.id, ["d8d2"]);
+    const wrong = await s.check("u2", p.id, ["d8d2"]);
     expect(wrong.status).toBe("wrong");
     expect(wrong.rating!.delta).toBeLessThan(0);
     // zweiter Versuch: gelöst, aber nicht mehr gewertet
-    const again = s.check("u2", p.id, ["d8d1"]);
+    const again = await s.check("u2", p.id, ["d8d1"]);
     expect(again.status).toBe("solved");
     expect(again.rating).toBeUndefined();
     expect(s.stats("u2")).toMatchObject({ attempts: 1, wins: 0, streak: 0 });
 
-    const q = s.next("u2");
+    const q = await s.next("u2");
     expect(q.id).not.toBe(p.id);
-    expect(s.solution("u2", q.id).rating!.delta).toBeLessThan(0);
+    expect((await s.solution("u2", q.id)).rating!.delta).toBeLessThan(0);
   });
 
-  it("mit Tipp gelöst verändert das Rating nicht", () => {
-    const s = new PuzzleService(puzzles, new MemoryPuzzleStore());
-    const p = s.next("u3");
-    expect(s.hint("u3", p.id, 0)).toEqual({ square: "d8", to: null });
-    expect(s.hint("u3", p.id, 0, 2)).toEqual({ square: "d8", to: "d1" });
-    expect(s.check("u3", p.id, ["d8d1"]).rating!.delta).toBe(0);
+  it("jede Stufe liefert nur Puzzles aus ihrem Rating-Bereich", async () => {
+    const s = service();
+    for (const [d, def] of Object.entries(DIFFICULTIES)) {
+      for (let i = 0; i < 5; i++) {
+        const p = await s.next(`lvl-${d}`, { difficulty: d as Difficulty });
+        expect(p.rating).toBeGreaterThanOrEqual(def.min);
+        expect(p.rating).toBeLessThan(def.max);
+      }
+    }
   });
 
-  it("Wiederholungen sind ungewertet", () => {
+  it("mit Tipp gelöst verändert das Rating nicht", async () => {
+    const s = service();
+    const p = await s.next("u3");
+    expect(await s.hint("u3", p.id, 0)).toEqual({ square: "d8", to: null });
+    expect(await s.hint("u3", p.id, 0, 2)).toEqual({ square: "d8", to: "d1" });
+    expect((await s.check("u3", p.id, ["d8d1"])).rating!.delta).toBe(0);
+  });
+
+  it("Wiederholungen sind ungewertet", async () => {
     const store = new MemoryPuzzleStore();
-    const s = new PuzzleService(puzzles, store);
-    const p = s.next("u4");
-    expect(s.check("u4", p.id, ["d8d1"]).rating!.delta).toBeGreaterThan(0);
-    const again = new PuzzleService(puzzles, store); // neue Sitzung, z. B. über den direkten Link
-    again.get("u4", p.id);
-    expect(again.check("u4", p.id, ["d8d1"]).rating!.delta).toBe(0);
+    const s = service(store);
+    const p = await s.next("u4");
+    expect((await s.check("u4", p.id, ["d8d1"])).rating!.delta).toBeGreaterThan(0);
+    const again = service(store); // neue Sitzung, z. B. über den direkten Link
+    await again.get("u4", p.id);
+    expect((await again.check("u4", p.id, ["d8d1"])).rating!.delta).toBe(0);
     expect(again.stats("u4").attempts).toBe(2);
   });
 
-  it("Tagespuzzle ist für alle gleich, Sturm steigt im Rating", () => {
-    const s = new PuzzleService(puzzles, new MemoryPuzzleStore(), () => Date.UTC(2026, 10, 21));
-    expect(s.daily().id).toBe(new PuzzleService(puzzles, new MemoryPuzzleStore(), () => Date.UTC(2026, 10, 21)).daily().id);
-    const storm = s.storm(20);
+  it("Tagespuzzle ist für alle gleich, Sturm steigt im Rating", async () => {
+    const at = () => Date.UTC(2026, 10, 21);
+    const s = service(undefined, at);
+    const d = await s.daily();
+    expect(d.daily).toBe("2026-11-21");
+    expect(d.id).toBe((await service(undefined, at).daily()).id);
+    const storm = await s.storm(20);
     expect(storm.length).toBe(20);
     expect(storm[0]!.rating).toBeLessThan(storm[19]!.rating);
     expect(s.stormResult("u", 12)).toEqual({ score: 12, best: 12, new_record: true });
     expect(s.stormResult("u", 5).new_record).toBe(false);
   });
 
-  it("Filter ohne Treffer liefert eine verständliche Fehlermeldung", () => {
-    const s = new PuzzleService(puzzles, new MemoryPuzzleStore());
-    expect(() => s.next("u", { theme: "smotheredMate" })).toThrow(/Keine Puzzles/);
-    expect(() => s.next("u", { mine: true })).toThrow(/deinen Partien/);
+  it("Filter ohne Treffer liefert eine verständliche Fehlermeldung", async () => {
+    const s = service();
+    await expect(s.next("u", { theme: "smotheredMate" })).rejects.toThrow(/Keine Puzzles/);
+    await expect(s.next("u", { mine: true })).rejects.toThrow(/deinen Partien/);
+    await expect(s.get("u", "gibt-es-nicht")).rejects.toThrow(/nicht gefunden/);
+  });
+});
+
+describe("Rating-Bänder", () => {
+  const many: Puzzle[] = Array.from({ length: 2400 }, (_, i) => ({
+    ...BACK_RANK,
+    id: `b${i}`,
+    rating: 400 + i,
+    themes: i % 2 ? ["mate", "mateIn1"] : ["mate", "mateIn1", "backRankMate"],
+    source: i % 10 ? "lichess" : "selfplay",
+  }));
+
+  it("buildPack: Bänder, Index und feste Auswahlen", () => {
+    const pack = buildPack(many);
+    expect(pack.index.total).toBe(2400);
+    expect(pack.index.bands.map((b) => b.count).reduce((a, b) => a + b, 0)).toBe(2400);
+    expect(pack.index.bands[0]).toMatchObject({ key: "0400", min: 0, max: 500, count: 100 });
+    expect(pack.index.difficulties).toEqual({ beginner: 600, easy: 400, medium: 400, hard: 400, master: 600 });
+    expect(pack.index.themes).toMatchObject({ mate: 2400, backRankMate: 1200 });
+    expect(pack.index.sources).toEqual({ lichess: 2160, selfplay: 240 });
+    expect(bandKeyOf(1234)).toBe("1200");
+    expect(bandKeyOf(99)).toBe("0400");
+    expect(bandKeyOf(3500)).toBe("2900");
+    expect(pack.storm.every((p) => p.rating >= 500 && p.rating < 2500)).toBe(true);
+    // Auswahl ist reproduzierbar
+    expect(buildPack(many).daily.map((p) => p.id)).toEqual(pack.daily.map((p) => p.id));
+  });
+
+  it("kompakte Zeilen lassen sich verlustfrei zurückwandeln", () => {
+    const p = many[10]!;
+    expect(toRow(many[11]!)).toHaveLength(5);
+    expect(toRow(p)).toHaveLength(6);
+    expect(fromRow(toRow(p))).toEqual(p);
+    expect(fromRow(JSON.parse(JSON.stringify(toRow(many[11]!))))).toEqual(many[11]);
+  });
+
+  it("lädt für ein adaptives Puzzle nur die Bänder um das eigene Rating", async () => {
+    const pack = buildPack(many);
+    const loaded: string[] = [];
+    const source = sourceFromRows(
+      pack.index,
+      (key) => (loaded.push(key), pack.bands.get(key)!.map(toRow)),
+      (name) => pack[name].map(toRow),
+    );
+    const s = new PuzzleService(source, new MemoryPuzzleStore());
+    const p = await s.next("u");
+    expect(Math.abs(p.rating - 1200)).toBeLessThanOrEqual(100);
+    expect(loaded.sort()).toEqual(["1100", "1200", "1300"]);
+    await s.next("u", { difficulty: "master" });
+    expect(loaded.length).toBe(4);
+    // Unbekannte ID: wird in den Bändern gesucht
+    expect((await s.get("u", "b0")).id).toBe("b0");
   });
 });

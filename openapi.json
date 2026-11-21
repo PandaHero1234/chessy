@@ -3,7 +3,7 @@
   "info": {
     "title": "Chessy API",
     "version": "1.0.0",
-    "description": "API-first Schachserver. Alle Clients (Web-UI, Bots, E-Boards) nutzen dieselbe API.\n\n**Auth:** `POST /api/v1/auth/guest` liefert ein Token. Senden als `Authorization: Bearer <token>` (Streams/WebSocket alternativ `?token=`).\n\n**Streams:** `GET /games/{id}/stream` und `GET /stream/events` liefern NDJSON (ein JSON-Objekt pro Zeile, leere Zeilen = Keep-alive) im Stil der Lichess Board API. `GET /ws` liefert dieselben Events per WebSocket.\n\n**Datenformat:** Feldnamen wie in der chess.com Public API (`time_control`, `time_class`, `fen`, `pgn`, Ergebniscodes)."
+    "description": "API-first Schachserver. Alle Clients (Web-UI, Bots, E-Boards) nutzen dieselbe API.\n\n**Auth:** `POST /api/v1/auth/guest` liefert ein Token. Senden als `Authorization: Bearer <token>` (Streams/WebSocket alternativ `?token=`). Login ist optional: `POST /auth/register` macht aus dem Gast ein Konto mit Benutzername und Passwort (Partien und Puzzle-Fortschritt bleiben), `POST /auth/login` meldet ein weiteres Gerät an.\n\n**Streams:** `GET /games/{id}/stream` und `GET /stream/events` liefern NDJSON (ein JSON-Objekt pro Zeile, leere Zeilen = Keep-alive) im Stil der Lichess Board API. `GET /ws` liefert dieselben Events per WebSocket.\n\n**Datenformat:** Feldnamen wie in der chess.com Public API (`time_control`, `time_class`, `fen`, `pgn`, Ergebniscodes)."
   },
   "components": {
     "securitySchemes": {
@@ -41,9 +41,11 @@
             "type": "string",
             "enum": [
               "guest",
+              "user",
               "bot",
               "board"
-            ]
+            ],
+            "description": "guest = anonym, user = mit Benutzername und Passwort, bot/board = API-Zugang"
           },
           "created_at": {
             "type": "integer",
@@ -520,6 +522,480 @@
     }
   },
   "paths": {
+    "/api/v1/auth/register": {
+      "post": {
+        "summary": "Konto anlegen. Mit Gast-Token wird dieser Gast zum Konto (Partien, Puzzle-Rating, Verlauf bleiben); ohne Token entsteht ein neues Konto. Passwort mindestens 8 Zeichen.",
+        "tags": [
+          "account"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "username",
+                  "password"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "account": {
+                      "$ref": "#/components/schemas/Account"
+                    },
+                    "token": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "account",
+                    "token"
+                  ]
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "account": {
+                      "$ref": "#/components/schemas/Account"
+                    },
+                    "token": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "account",
+                    "token"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "summary": "Anmelden: liefert ein neues Sitzungs-Token für dieses Gerät. Nach 10 Fehlversuchen in 15 Minuten wird kurz gesperrt.",
+        "tags": [
+          "account"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "username",
+                  "password"
+                ]
+              }
+            }
+          }
+        },
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "account": {
+                      "$ref": "#/components/schemas/Account"
+                    },
+                    "token": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "account",
+                    "token"
+                  ]
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "account": {
+                      "$ref": "#/components/schemas/Account"
+                    },
+                    "token": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "account",
+                    "token"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "summary": "Abmelden: beendet die Sitzung dieses Tokens, mit `everywhere: true` alle Sitzungen des Kontos",
+        "tags": [
+          "account"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "everywhere": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ended": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/password": {
+      "post": {
+        "summary": "Passwort ändern. Alle anderen Sitzungen werden beendet, diese bleibt angemeldet.",
+        "tags": [
+          "account"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "old_password": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "new_password": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "required": [
+                  "old_password",
+                  "new_password"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ended": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/{kind}": {
       "post": {
         "summary": "Account anlegen (guest, bot oder board) und Token erhalten",
@@ -2424,7 +2900,36 @@
                 "oneMove",
                 "short",
                 "long",
-                "veryLong"
+                "veryLong",
+                "equality",
+                "attraction",
+                "deflection",
+                "intermezzo",
+                "zugzwang",
+                "xRayAttack",
+                "capturingDefender",
+                "trappedPiece",
+                "clearance",
+                "interference",
+                "defensiveMove",
+                "exposedKing",
+                "kingsideAttack",
+                "queensideAttack",
+                "advancedPawn",
+                "attackingF2F7",
+                "castling",
+                "pawnEndgame",
+                "rookEndgame",
+                "queenEndgame",
+                "bishopEndgame",
+                "knightEndgame",
+                "queenRookEndgame",
+                "anastasiaMate",
+                "arabianMate",
+                "bodenMate",
+                "doubleBishopMate",
+                "dovetailMate",
+                "hookMate"
               ]
             },
             "in": "query",

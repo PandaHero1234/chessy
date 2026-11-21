@@ -26,7 +26,7 @@ const { values } = parseArgs({
 const dataDir = new URL("../../../../packages/puzzles/data/", import.meta.url);
 const RAW = new URL("puzzles.raw.jsonl", dataDir);
 const OUT = new URL("puzzles.json", dataDir);
-const REPORT = new URL("../../../../docs/puzzles-report.md", import.meta.url);
+const REPORT = new URL("../../../../docs/puzzles-generator-report.md", import.meta.url);
 
 /** Gängige Eröffnungen, damit die Partien abwechslungsreich und realistisch sind. */
 const BOOK = [
@@ -190,7 +190,7 @@ function build() {
   writeFileSync(OUT, JSON.stringify(list.map(({ features: _f, ...p }) => p)) + "\n");
 
   const lines: string[] = [];
-  lines.push("# Puzzle-Bericht", "");
+  lines.push("# Bericht des Puzzle-Generators", "", "Nur die selbst erzeugten Puzzles. Die ausgelieferte Sammlung beschreibt [puzzles-report.md](puzzles-report.md).", "");
   lines.push(`Erzeugt mit \`npm run puzzles:generate\`: **${list.length} Puzzles** (aus ${raw.length} Funden nach Entfernen doppelter Stellungen).`, "");
   lines.push("## Verteilung nach Stufe", "", "| Stufe | Rating | Anzahl | Anteil |", "|---|---|---|---|");
   for (const [k, d] of Object.entries(DIFFICULTIES)) {
