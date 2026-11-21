@@ -2,9 +2,8 @@
 //   node e2e/puzzles.cjs [baseUrl]      z. B. http://localhost:3000 oder http://localhost:4000/chessy
 const { chromium } = require("playwright");
 const { Chess } = require("chess.js");
-const puzzles = require("../packages/puzzles/data/puzzles.json");
+const { byId } = require("./puzzleData.cjs");
 const base = (process.argv[2] || "http://localhost:3000").replace(/\/$/, "");
-const byId = new Map(puzzles.map((p) => [p.id, p]));
 
 (async () => {
   const browser = await chromium.launch();

@@ -1,8 +1,7 @@
 // Handy-Test mit Prüfungen: Alles Wichtige ist ohne Scrollen sichtbar, Tipp/Lösung/Weiter funktionieren per Touch.
 //   node e2e/mobile.cjs [baseUrl]     Standard: http://localhost:4000/chessy (Pages-Build), auch gegen den Server nutzbar
 const { chromium } = require("playwright");
-const puzzles = require("../packages/puzzles/data/puzzles.json");
-const byId = new Map(puzzles.map((p) => [p.id, p]));
+const { byId } = require("./puzzleData.cjs");
 const base = (process.argv[2] || "http://localhost:4000/chessy").replace(/\/$/, "");
 const SIZES = [
   { name: "390x664", width: 390, height: 664 },
@@ -59,6 +58,8 @@ async function run(size, browser) {
       await waitPlay();
       await tapSq(".puzzle-stage", p.moves[i].slice(0, 2));
       await tapSq(".puzzle-stage", p.moves[i].slice(2, 4));
+      // Umwandlung: Figur im Auswahlfeld antippen (Reihenfolge Dame, Springer, Turm, Läufer)
+      if (p.moves[i][4]) await page.locator(".promo-piece").nth("qnrb".indexOf(p.moves[i][4])).tap();
     }
   };
   const PUZZLE = { Statuszeile: ".puzzle-statusbar", Brett: ".puzzle-stage .board", Aktionsleiste: ".action-bar" };

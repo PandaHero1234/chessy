@@ -14,8 +14,8 @@ import { StockfishPool, type Engine } from "./ai/stockfish.ts";
 import { ChessComClient } from "./chesscom/client.ts";
 import { schemas, ref, errorResponses, timeControlInput } from "./routes/schemas.ts";
 import { registerPuzzleRoutes } from "./routes/puzzles.ts";
-import { createRequire } from "node:module";
-import { PuzzleService, type Puzzle } from "@chessy/puzzles";
+import { PuzzleService, sourceFromArray, type Puzzle } from "@chessy/puzzles";
+import { diskSource } from "@chessy/puzzles/node";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -31,7 +31,7 @@ export interface AppOptions {
   /** Pfad zum gebauten Web-Frontend (apps/web/dist); wird ausgeliefert, falls vorhanden. */
   webDist?: string | null;
   keepAliveMs?: number;
-  /** Puzzle-Sammlung (Standard: packages/puzzles/data/puzzles.json). */
+  /** Puzzle-Sammlung (Standard: die Rating-Bänder unter packages/puzzles/data). */
   puzzles?: Puzzle[];
   /** Eigene Engine für die Puzzle-Suche in Partien (Standard: separater Stockfish-Prozess). */
   miner?: Engine;
@@ -47,8 +47,9 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
   const service = new GameService(store, engine);
   const chessCom = opts.chessCom ?? new ChessComClient();
   const keepAliveMs = opts.keepAliveMs ?? 7000;
-  const puzzleList = opts.puzzles ?? (createRequire(import.meta.url)("@chessy/puzzles/data") as Puzzle[]);
-  const puzzles = new PuzzleService(puzzleList, store.puzzleStore());
+  const puzzles = new PuzzleService(opts.puzzles ? sourceFromArray(opts.puzzles) : diskSource(), store.puzzleStore());
+  // Alle Rating-Bänder vorab laden: Puzzles sind dann per ID sofort auffindbar.
+  await puzzles.preload();
   // Separater Engine-Prozess, damit lange Puzzle-Suchen keine Computerzüge in laufenden Partien blockieren.
   const miner = opts.miner ?? new StockfishPool(1);
 

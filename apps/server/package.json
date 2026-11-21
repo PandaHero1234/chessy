@@ -7,7 +7,8 @@
     "dev": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx watch src/main.ts",
     "start": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx src/main.ts",
     "openapi": "NODE_OPTIONS=--disable-warning=ExperimentalWarning tsx src/scripts/exportOpenApi.ts",
-    "puzzles:generate": "tsx src/scripts/generatePuzzles.ts"
+    "puzzles:generate": "tsx src/scripts/generatePuzzles.ts",
+    "puzzles:pack": "tsx src/scripts/packPuzzles.ts"
   },
   "dependencies": {
     "@chessy/puzzles": "0.1.0",

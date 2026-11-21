@@ -1,5 +1,6 @@
 import type { Puzzle, PuzzlePublic, PuzzleTheme, Difficulty } from "./types.ts";
-import { DIFFICULTIES, THEMES } from "./types.ts";
+import { DIFFICULTIES } from "./types.ts";
+import type { BandInfo, PuzzleSource } from "./source.ts";
 import { checkMoves, hintSquare, solverMoveCount, toPublic, type CheckResult } from "./check.ts";
 import { START_RATING, updateRatings } from "./rating.ts";
 import { mineGame, type Analyzer, type MiningOptions } from "./mining.ts";
@@ -32,6 +33,9 @@ export interface PuzzleStore {
   attemptedIds(userId: string): Set<string>;
   userPuzzles(userId: string): Puzzle[];
   addUserPuzzles(userId: string, puzzles: Puzzle[]): void;
+  /** Optional (Browser): zuletzt gezeigte Puzzles merken, damit Verlaufs-Links ohne Suche in allen Bändern funktionieren. */
+  cachePuzzle?(p: Puzzle): void;
+  cachedPuzzle?(id: string): Puzzle | undefined;
 }
 
 export class PuzzleError extends Error {
@@ -69,32 +73,71 @@ const HISTORY = 50;
 /**
  * Puzzle-Logik für Server und Browser: Auswahl (Stufe, adaptiv, Thema), Prüfen, Tipps, Ratings,
  * Tagespuzzle, Puzzle-Sturm und Puzzles aus eigenen Partien.
+ *
+ * Die Sammlung kommt aus einer PuzzleSource in Rating-Bändern. Die Auswahl lädt nur die Bänder, die sie braucht,
+ * und durchsucht nie die ganze Sammlung. So funktioniert derselbe Code mit 1.000 wie mit 100.000 Puzzles.
  */
 export class PuzzleService {
-  private byId: Map<string, Puzzle>;
+  private byId = new Map<string, Puzzle>();
   private sessions = new Map<string, Session>();
 
   constructor(
-    private readonly puzzles: Puzzle[],
+    private readonly source: PuzzleSource,
     private readonly store: PuzzleStore,
     private readonly now: () => number = Date.now,
-  ) {
-    this.byId = new Map(puzzles.map((p) => [p.id, p]));
-  }
+  ) {}
 
   get count() {
-    return this.puzzles.length;
+    return this.source.index.total;
   }
 
-  private find(userId: string, id: string): Puzzle {
-    const p = this.byId.get(id) ?? this.store.userPuzzles(userId).find((x) => x.id === id);
-    if (!p) throw new PuzzleError(404, "puzzle_not_found", "Puzzle nicht gefunden");
-    return p;
+  private remember(list: Puzzle[]) {
+    for (const p of list) this.byId.set(p.id, p);
+    return list;
+  }
+
+  private async band(key: string): Promise<Puzzle[]> {
+    const list = await this.source.band(key);
+    if (list.length && !this.byId.has(list[0]!.id)) this.remember(list);
+    return list;
+  }
+
+  private async pool(name: "storm" | "daily"): Promise<Puzzle[]> {
+    return this.remember(await this.source.pool(name));
+  }
+
+  /** Lädt alle Bänder vorab (Server): Danach sind Puzzles per ID ohne Nachladen auffindbar. */
+  async preload() {
+    for (const b of this.source.index.bands) await this.band(b.key);
+  }
+
+  private async find(userId: string, id: string): Promise<Puzzle> {
+    const known = this.byId.get(id) ?? this.store.userPuzzles(userId).find((x) => x.id === id) ?? this.store.cachedPuzzle?.(id);
+    if (known) return known;
+    // Unbekannte ID (z. B. geteilter Link): Bänder der Reihe nach durchsuchen.
+    for (const b of this.source.index.bands) {
+      await this.band(b.key);
+      const p = this.byId.get(id);
+      if (p) return p;
+    }
+    for (const name of ["daily", "storm"] as const) {
+      await this.pool(name);
+      const p = this.byId.get(id);
+      if (p) return p;
+    }
+    throw new PuzzleError(404, "puzzle_not_found", "Puzzle nicht gefunden");
   }
 
   private rated(p: Puzzle): Puzzle {
     const s = this.store.getStat(p.id);
     return s ? { ...p, rating: s.rating } : p;
+  }
+
+  private serve(userId: string, p: Puzzle, fresh = true): PuzzlePublic {
+    const key = `${userId}:${p.id}`;
+    if (fresh || !this.sessions.has(key)) this.sessions.set(key, { failed: false, hinted: false, recorded: false });
+    this.store.cachePuzzle?.(p);
+    return toPublic(this.rated(p));
   }
 
   user(userId: string): PuzzleUserState {
@@ -114,51 +157,80 @@ export class PuzzleService {
   }
 
   /** Nächstes Puzzle: nach Stufe, sonst adaptiv um das eigene Rating. */
-  next(userId: string, filter: NextFilter = {}): PuzzlePublic {
-    let pool = filter.mine ? this.store.userPuzzles(userId) : this.puzzles;
-    if (filter.theme) pool = pool.filter((p) => p.themes.includes(filter.theme!));
-    if (!pool.length) throw new PuzzleError(404, "no_puzzles", filter.mine ? "Noch keine Puzzles aus deinen Partien" : "Keine Puzzles für diesen Filter");
+  async next(userId: string, filter: NextFilter = {}): Promise<PuzzlePublic> {
     const seen = this.store.attemptedIds(userId);
-    const fresh = pool.filter((p) => !seen.has(p.id));
-    const base = (fresh.length ? fresh : pool).map((p) => this.rated(p));
-    let candidates: Puzzle[];
-    if (filter.difficulty) {
-      const d = DIFFICULTIES[filter.difficulty];
-      candidates = base.filter((p) => p.rating >= d.min && p.rating < d.max);
-      if (!candidates.length) throw new PuzzleError(404, "no_puzzles", `Keine Puzzles der Stufe ${d.label} für diesen Filter`);
-    } else {
-      const target = this.user(userId).rating;
-      let window = 100;
-      do {
-        candidates = base.filter((p) => Math.abs(p.rating - target) <= window);
-        window *= 1.6;
-      } while (candidates.length < 5 && window < 3000);
-      if (!candidates.length) candidates = base;
+    const pick = (list: Puzzle[]) => {
+      const fresh = list.filter((p) => !seen.has(p.id));
+      const from = fresh.length ? fresh : list;
+      return from[Math.floor(Math.random() * from.length)]!;
+    };
+    const matches = (p: Puzzle) => !filter.theme || p.themes.includes(filter.theme);
+
+    if (filter.mine) {
+      const own = this.store.userPuzzles(userId).filter(matches);
+      if (!own.length) throw new PuzzleError(404, "no_puzzles", "Noch keine Puzzles aus deinen Partien");
+      let c = own;
+      if (filter.difficulty) {
+        const d = DIFFICULTIES[filter.difficulty];
+        c = own.filter((p) => p.rating >= d.min && p.rating < d.max);
+        if (!c.length) throw new PuzzleError(404, "no_puzzles", `Keine Puzzles der Stufe ${d.label} für diesen Filter`);
+      }
+      return this.serve(userId, pick(c));
     }
-    const p = candidates[Math.floor(Math.random() * candidates.length)]!;
-    this.sessions.set(`${userId}:${p.id}`, { failed: false, hinted: false, recorded: false });
-    return toPublic(p);
+
+    const bands = this.source.index.bands;
+    if (!bands.length) throw new PuzzleError(404, "no_puzzles", "Keine Puzzles für diesen Filter");
+
+    if (filter.difficulty) {
+      // Ein zufälliges Band der Stufe (nach Größe gewichtet); nur wenn dort nichts passt, die übrigen.
+      const d = DIFFICULTIES[filter.difficulty];
+      const inLevel = bands.filter((b) => b.max > d.min && b.min < d.max && b.count > 0);
+      const order = weightedOrder(inLevel);
+      for (const b of order) {
+        const c = (await this.band(b.key)).filter((p) => p.rating >= d.min && p.rating < d.max && matches(p));
+        if (c.length) return this.serve(userId, pick(c));
+      }
+      throw new PuzzleError(404, "no_puzzles", `Keine Puzzles der Stufe ${d.label} für diesen Filter`);
+    }
+
+    // Adaptiv: Fenster um das eigene Rating, wird erweitert, bis genug ungelöste Kandidaten da sind.
+    const target = this.user(userId).rating;
+    let window = 100;
+    let candidates: Puzzle[] = [];
+    for (;;) {
+      const lo = target - window;
+      const hi = target + window;
+      candidates = [];
+      for (const b of bands) {
+        if (b.max <= lo || b.min > hi || !b.count) continue;
+        for (const p of await this.band(b.key)) if (p.rating >= lo && p.rating <= hi && matches(p)) candidates.push(p);
+      }
+      const fresh = candidates.filter((p) => !seen.has(p.id)).length;
+      if (fresh >= 5 || window >= 3000) break;
+      window *= 1.6;
+    }
+    if (!candidates.length) throw new PuzzleError(404, "no_puzzles", "Keine Puzzles für diesen Filter");
+    return this.serve(userId, pick(candidates));
   }
 
-  get(userId: string, id: string): PuzzlePublic {
-    const p = this.rated(this.find(userId, id));
-    if (!this.sessions.has(`${userId}:${id}`)) this.sessions.set(`${userId}:${id}`, { failed: false, hinted: false, recorded: false });
-    return toPublic(p);
+  async get(userId: string, id: string): Promise<PuzzlePublic> {
+    return this.serve(userId, await this.find(userId, id), false);
   }
 
   /** Tagespuzzle: für alle gleich, wechselt um Mitternacht UTC. */
-  daily(date = new Date(this.now())): PuzzlePublic {
+  async daily(date = new Date(this.now())): Promise<PuzzlePublic & { daily: string }> {
     const day = date.toISOString().slice(0, 10);
-    const pool = this.puzzles.filter((p) => p.rating >= 1300 && p.rating <= 2100 && solverMoveCount(p) >= 2);
-    const list = (pool.length ? pool : this.puzzles).slice().sort((a, b) => a.id.localeCompare(b.id));
+    const list = await this.pool("daily");
     if (!list.length) throw new PuzzleError(404, "no_puzzles", "Keine Puzzles vorhanden");
     let h = 0;
     for (const ch of day) h = (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0;
-    return { ...toPublic(this.rated(list[h % list.length]!)), daily: day } as PuzzlePublic & { daily: string };
+    const p = list[h % list.length]!;
+    this.store.cachePuzzle?.(p);
+    return { ...toPublic(this.rated(p)), daily: day };
   }
 
-  check(userId: string, id: string, moves: string[]): CheckResponse {
-    const p = this.find(userId, id);
+  async check(userId: string, id: string, moves: string[]): Promise<CheckResponse> {
+    const p = await this.find(userId, id);
     const key = `${userId}:${id}`;
     const session = this.sessions.get(key) ?? { failed: false, hinted: false, recorded: false };
     this.sessions.set(key, session);
@@ -175,8 +247,8 @@ export class PuzzleService {
   }
 
   /** Tipp in zwei Stufen: Stufe 1 nennt die Figur (Startfeld), Stufe 2 zusätzlich das Zielfeld. */
-  hint(userId: string, id: string, solvedMoves: number, level: 1 | 2 = 1): { square: string | null; to: string | null } {
-    const p = this.find(userId, id);
+  async hint(userId: string, id: string, solvedMoves: number, level: 1 | 2 = 1): Promise<{ square: string | null; to: string | null }> {
+    const p = await this.find(userId, id);
     const key = `${userId}:${id}`;
     const s = this.sessions.get(key) ?? { failed: false, hinted: false, recorded: false };
     s.hinted = true;
@@ -186,8 +258,8 @@ export class PuzzleService {
   }
 
   /** Lösung anzeigen zählt als nicht gelöst. */
-  solution(userId: string, id: string): { moves: string[]; themes: PuzzleTheme[]; rating?: CheckResponse["rating"] } {
-    const p = this.find(userId, id);
+  async solution(userId: string, id: string): Promise<{ moves: string[]; themes: PuzzleTheme[]; rating?: CheckResponse["rating"] }> {
+    const p = await this.find(userId, id);
     const key = `${userId}:${id}`;
     const s = this.sessions.get(key) ?? { failed: false, hinted: false, recorded: false };
     this.sessions.set(key, s);
@@ -226,26 +298,20 @@ export class PuzzleService {
 
   stats(userId: string) {
     const u = this.user(userId);
-    return { ...u, puzzles_available: this.puzzles.length, own_puzzles: this.store.userPuzzles(userId).length };
+    return { ...u, puzzles_available: this.source.index.total, own_puzzles: this.store.userPuzzles(userId).length };
   }
 
-  /** Übersicht für Filter: Anzahl je Stufe und Thema. */
+  /** Übersicht für Filter: Anzahl je Stufe und Thema (aus dem Index, ohne die Sammlung zu laden). */
   catalog() {
-    const difficulties = Object.fromEntries(
-      Object.entries(DIFFICULTIES).map(([k, d]) => [k, this.puzzles.filter((p) => p.rating >= d.min && p.rating < d.max).length]),
-    ) as Record<Difficulty, number>;
-    const themes = Object.fromEntries(THEMES.map((t) => [t, this.puzzles.filter((p) => p.themes.includes(t)).length]).filter(([, n]) => (n as number) > 0)) as Partial<
-      Record<PuzzleTheme, number>
-    >;
-    return { total: this.puzzles.length, difficulties, themes };
+    const { total, difficulties, themes } = this.source.index;
+    return { total, difficulties, themes };
   }
 
-  /** Puzzle-Sturm: 60 Puzzles mit steigender Schwierigkeit. Ungewertet, Lösungen werden mitgeschickt. */
-  storm(count = 60): Puzzle[] {
+  /** Puzzle-Sturm: Puzzles mit steigender Schwierigkeit. Ungewertet, Lösungen werden mitgeschickt. */
+  async storm(count = 60): Promise<Puzzle[]> {
+    const pool = await this.pool("storm");
     const used = new Set<string>();
     const out: Puzzle[] = [];
-    const short = this.puzzles.filter((p) => solverMoveCount(p) <= 3);
-    const pool = short.length >= count ? short : this.puzzles;
     for (let k = 0; k < count && used.size < pool.length; k++) {
       const target = 600 + (k * 1800) / count;
       let window = 120;
@@ -280,6 +346,19 @@ export class PuzzleService {
     if (fresh.length) this.store.addUserPuzzles(userId, fresh);
     return found;
   }
+}
+
+/** Zufällige Reihenfolge, größere Bänder kommen mit höherer Wahrscheinlichkeit zuerst. */
+function weightedOrder(bands: BandInfo[]): BandInfo[] {
+  const rest = bands.slice();
+  const out: BandInfo[] = [];
+  while (rest.length) {
+    let r = Math.random() * rest.reduce((s, b) => s + b.count, 0);
+    let i = 0;
+    while (i < rest.length - 1 && (r -= rest[i]!.count) > 0) i++;
+    out.push(rest.splice(i, 1)[0]!);
+  }
+  return out;
 }
 
 /** Speicher im Arbeitsspeicher (Tests, Fallback). */

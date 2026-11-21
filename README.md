@@ -35,7 +35,7 @@ Voraussetzung: Node.js ≥ 22.5. SQLite kommt über das eingebaute `node:sqlite`
 | **Gegner** | Stockfish in 8 Stufen · Online-Lobby mit Matchmaking · Einladungslink · Lokal (zwei Spieler, ein Gerät) |
 | **Regeln** | Matt, Patt, dreifache Wiederholung, 50 Züge, ungenügendes Material, Zeit gegen ungenügendes Material, Abbruch vor dem ersten Zug, Remis- und Rücknahmeangebote |
 | **Brett** | Eigenes Brett: Drag & Drop + Klick, animierte Figuren, Pfeile/Kreise per Rechtsklick, Umwandlungsauswahl, 6 Farbschemata, Sounds |
-| **Puzzles** | Selbst erzeugte Puzzles in 5 Stufen (Einsteiger bis Meister) oder adaptiv nach eigenem Elo-Rating, 25+ Themen (Gabel, Fesselung, Grundreihenmatt …), Tagespuzzle, 3-Minuten-Puzzle-Sturm, Puzzles aus eigenen Partien. Nur Algorithmen + lokaler Stockfish, keine KI-Dienste. Details: [docs/puzzles.md](docs/puzzles.md) |
+| **Puzzles** | 102.400 Puzzles in 5 Stufen (Einsteiger bis Meister) oder adaptiv nach eigenem Elo-Rating, 57 Themen (Gabel, Fesselung, Zugzwang, Grundreihenmatt …), Tagespuzzle, 3-Minuten-Puzzle-Sturm, Puzzles aus eigenen Partien. Eigener Generator plus geprüfte Auswahl aus der offenen Lichess-Puzzle-Datenbank; keine KI-Dienste, keine API-Keys. Details: [docs/puzzles.md](docs/puzzles.md) |
 | **Smartphone** | Brett, Status und Aktionen passen ohne Scrollen auf einen Bildschirm; Aktionsleiste in Daumenhöhe; Figur schwebt beim Ziehen über dem Finger; als App auf den Startbildschirm legbar (Web-App-Manifest) |
 | **Analyse** | Bewertungsbalken + Hauptvariante (Stockfish), Nachspielen per Pfeiltasten, PGN-Export |
 | **chess.com** | Profil, Ratings, Archive; Partien importieren und analysieren |
@@ -46,7 +46,8 @@ Voraussetzung: Node.js ≥ 22.5. SQLite kommt über das eingebaute `node:sqlite`
 ```
 packages/shared          Typen (GameSnapshot, Events), Zeitmodi + Presets, UCI-/MultiPV-Auswertung
 packages/puzzles         Puzzle-Logik (Server + Browser): Mining, Eindeutigkeit, Themen, Schwierigkeit, Elo, Auswahl
-  data/puzzles.json      Erzeugte Puzzle-Sammlung (npm run puzzles:generate)
+  data/bands/*.json      Sammlung in Rating-Bändern (npm run puzzles:pack), dazu index.json, storm.json, daily.json
+  data/puzzles.json      Selbst erzeugte Puzzles (npm run puzzles:generate)
 apps/server              Fastify: REST, NDJSON-Streams, WebSocket, OpenAPI (/docs), Stockfish-Pool, SQLite
   src/game/clock.ts      Schachuhr (rein, testbar)
   src/game/game.ts       Partie: Regeln (chess.js), Ergebnis, PGN
@@ -102,7 +103,11 @@ Die vollständige, interaktive Doku liegt unter **`/docs`** (Swagger UI), die Sp
 
 ```bash
 npm run puzzles:generate -- --target 1000 --workers 4 --minutes 120   # sammeln (fortsetzbar)
-npm run puzzles:generate -- --build                                   # puzzles.json + docs/puzzles-report.md
+npm run puzzles:generate -- --build                                   # puzzles.json + docs/puzzles-generator-report.md
+
+# Sammlung packen: eigene Puzzles + Auswahl aus der Lichess-Datenbank (https://database.lichess.org/#puzzles)
+npm run puzzles:pack -- --lichess lichess_db_puzzle.csv.zst --total 102400   # Bänder + docs/puzzles-report.md
+npm run puzzles:pack                                                          # nur die eigenen Puzzles
 ```
 
 Wie Fehler gefunden, Lösungen auf Eindeutigkeit geprüft, Themen erkannt und Schwierigkeiten berechnet werden, steht in [docs/puzzles.md](docs/puzzles.md).
@@ -154,3 +159,4 @@ Einmalig nötig: *Settings → Pages → Source: GitHub Actions*.
 GPL-3.0-or-later (siehe [LICENSE](LICENSE)).
 Stockfish ist GPLv3 (The Stockfish developers, WASM-Build von [nmrugg/stockfish.js](https://github.com/nmrugg/stockfish.js)).
 Figurensatz „cburnett“ von [Colin M.L. Burnett](https://en.wikipedia.org/wiki/User:Cburnett), GPLv2+.
+Ein Großteil der Puzzles stammt aus der [Lichess-Puzzle-Datenbank](https://database.lichess.org/#puzzles), gemeinfrei (CC0).

@@ -5,4 +5,5 @@ export * from "./difficulty.ts";
 export * from "./rating.ts";
 export * from "./mining.ts";
 export * from "./service.ts";
+export * from "./source.ts";
 export { VALUE, materialDiff, uciToMove } from "./board.ts";
