@@ -206,6 +206,17 @@ describe("PuzzleService", () => {
     expect(s.check("u3", p.id, ["d8d1"]).rating!.delta).toBe(0);
   });
 
+  it("Wiederholungen sind ungewertet", () => {
+    const store = new MemoryPuzzleStore();
+    const s = new PuzzleService(puzzles, store);
+    const p = s.next("u4");
+    expect(s.check("u4", p.id, ["d8d1"]).rating!.delta).toBeGreaterThan(0);
+    const again = new PuzzleService(puzzles, store); // neue Sitzung, z. B. über den direkten Link
+    again.get("u4", p.id);
+    expect(again.check("u4", p.id, ["d8d1"]).rating!.delta).toBe(0);
+    expect(again.stats("u4").attempts).toBe(2);
+  });
+
   it("Tagespuzzle ist für alle gleich, Sturm steigt im Rating", () => {
     const s = new PuzzleService(puzzles, new MemoryPuzzleStore(), () => Date.UTC(2026, 10, 21));
     expect(s.daily().id).toBe(new PuzzleService(puzzles, new MemoryPuzzleStore(), () => Date.UTC(2026, 10, 21)).daily().id);

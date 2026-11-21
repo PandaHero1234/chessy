@@ -199,8 +199,8 @@ export class PuzzleService {
     const u = this.user(userId);
     const stat = this.store.getStat(p.id) ?? { rating: p.rating, plays: 0, wins: 0 };
     const before = u.rating;
-    // Mit Tipp gelöst: zählt als Versuch, verändert das Rating aber nicht.
-    const assisted = win && session.hinted;
+    // Mit Tipp gelöst oder schon früher versucht: zählt als Versuch, verändert die Ratings aber nicht.
+    const assisted = (win && session.hinted) || this.store.attemptedIds(userId).has(p.id);
     const r = updateRatings({ rating: u.rating, attempts: u.attempts }, { rating: stat.rating, plays: stat.plays }, win);
     if (!assisted) {
       u.rating = r.player;
