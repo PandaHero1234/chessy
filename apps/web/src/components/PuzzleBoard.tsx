@@ -4,6 +4,7 @@ import { checkMoves, type CheckResponse, type Puzzle, type PuzzlePublic } from "
 import { Board } from "./Board.tsx";
 import { api } from "../lib/api.ts";
 import { play } from "../lib/sound.ts";
+import { haptic } from "../lib/haptics.ts";
 
 export type PuzzlePhase = "intro" | "play" | "busy" | "solved" | "failed";
 
@@ -24,9 +25,10 @@ interface Props {
   failFast?: boolean;
   onOutcome?: (o: PuzzleOutcome) => void;
   onPhase?: (p: PuzzlePhase, info: { feedback: "good" | "bad" | null; solverIndex: number }) => void;
-  /** Erhöhen, um einen Tipp anzufordern / die Lösung abzuspielen. */
+  /** Erhöhen, um einen Tipp anzufordern: erst die Figur, beim zweiten Mal das Zielfeld. */
   hintSignal?: number;
-  solutionSignal?: number;
+  /** Meldet die aktuell gezeigte Tipp-Stufe (0 = keiner). */
+  onHintLevel?: (level: 0 | 1 | 2) => void;
   introDelay?: number;
 }
 
@@ -39,15 +41,18 @@ function apply(fen: string, uci: string) {
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Brett mit Puzzle-Ablauf: Gegnerzug vorspielen, eigene Züge prüfen, Antworten ausführen. */
-export function PuzzleBoard({ puzzle, full, failFast, onOutcome, onPhase, hintSignal = 0, solutionSignal = 0, introDelay = 600 }: Props) {
+/** Brett mit Puzzle-Ablauf: Gegnerzug vorspielen, eigene Züge prüfen, Antworten ausführen, Tipps anzeigen. */
+export function PuzzleBoard({ puzzle, full, failFast, onOutcome, onPhase, hintSignal = 0, onHintLevel, introDelay = 600 }: Props) {
   const [fen, setFen] = useState(puzzle.fen);
   const [last, setLast] = useState<[string, string] | null>(null);
   const [phase, setPhase] = useState<PuzzlePhase>("intro");
   const [marks, setMarks] = useState<{ square: string; kind: "hint" | "good" | "bad" }[]>([]);
+  const [shapes, setShapes] = useState<{ from: string; to: string; kind: "hint" }[]>([]);
+  const [shake, setShake] = useState(false);
   const solver = useRef<string[]>([]);
   const failed = useRef(false);
   const alive = useRef(true);
+  const hintLevel = useRef<0 | 1 | 2>(0);
   const orientation = puzzle.color;
 
   const setP = useCallback(
@@ -58,6 +63,12 @@ export function PuzzleBoard({ puzzle, full, failFast, onOutcome, onPhase, hintSi
     [onPhase],
   );
 
+  const clearHint = useCallback(() => {
+    hintLevel.current = 0;
+    setShapes([]);
+    onHintLevel?.(0);
+  }, [onHintLevel]);
+
   // Neues Puzzle: Ausgangsstellung zeigen, dann den Fehler des Gegners vorspielen.
   useEffect(() => {
     alive.current = true;
@@ -66,6 +77,7 @@ export function PuzzleBoard({ puzzle, full, failFast, onOutcome, onPhase, hintSi
     setFen(puzzle.fen);
     setLast(null);
     setMarks([]);
+    clearHint();
     setP("intro");
     const t = setTimeout(() => {
       if (!alive.current) return;
@@ -94,6 +106,7 @@ export function PuzzleBoard({ puzzle, full, failFast, onOutcome, onPhase, hintSi
     setFen(moved.fen);
     setLast(moved.last);
     setMarks([]);
+    clearHint();
     setP("busy");
     let r: CheckResponse;
     try {
@@ -107,7 +120,10 @@ export function PuzzleBoard({ puzzle, full, failFast, onOutcome, onPhase, hintSi
     if (r.status === "wrong") {
       failed.current = true;
       setMarks([{ square: to, kind: "bad" }]);
+      setShake(true);
+      setTimeout(() => alive.current && setShake(false), 450);
       play("illegal");
+      haptic("bad");
       if (failFast) {
         setP("failed", "bad");
         onOutcome?.({ status: "failed", clean: false, rating: r.rating });
@@ -115,7 +131,7 @@ export function PuzzleBoard({ puzzle, full, failFast, onOutcome, onPhase, hintSi
       }
       setP("busy", "bad");
       if (r.rating) onOutcome?.({ status: "failed", clean: false, rating: r.rating });
-      await wait(700);
+      await wait(750);
       if (!alive.current) return;
       setFen(before);
       setLast(null);
@@ -126,10 +142,12 @@ export function PuzzleBoard({ puzzle, full, failFast, onOutcome, onPhase, hintSi
     solver.current = [...solver.current, uci];
     setMarks([{ square: to, kind: "good" }]);
     if (r.status === "solved") {
+      haptic("good");
       setP("solved", "good");
       onOutcome?.({ status: "solved", clean: !failed.current, rating: r.rating, themes: r.themes, solution: r.solution });
       return;
     }
+    haptic("tap");
     setP("busy", "good");
     await wait(380);
     if (!alive.current) return;
@@ -140,44 +158,25 @@ export function PuzzleBoard({ puzzle, full, failFast, onOutcome, onPhase, hintSi
     setP("play", "good");
   };
 
-  // Tipp: Startfeld des nächsten Zugs markieren.
+  // Tipp: erst die Figur markieren, beim zweiten Antippen zusätzlich das Zielfeld als Pfeil.
   useEffect(() => {
     if (!hintSignal || phase !== "play") return;
+    const level = hintLevel.current === 0 ? 1 : 2;
     const solved = solver.current.length;
-    const fromFull = full?.moves[1 + 2 * solved]?.slice(0, 2);
-    (fromFull ? Promise.resolve({ square: fromFull }) : api.puzzles.hint(puzzle.id, solved)).then((h) => h.square && setMarks([{ square: h.square, kind: "hint" }]));
+    const move = full?.moves[1 + 2 * solved];
+    const request = move ? Promise.resolve({ square: move.slice(0, 2), to: level === 2 ? move.slice(2, 4) : null }) : api.puzzles.hint(puzzle.id, solved, level);
+    request.then(
+      (h) => {
+        if (!alive.current || !h.square || solver.current.length !== solved) return;
+        hintLevel.current = level;
+        onHintLevel?.(level);
+        setMarks([{ square: h.square, kind: "hint" }]);
+        setShapes(h.to ? [{ from: h.square, to: h.to, kind: "hint" }] : []);
+      },
+      () => undefined,
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hintSignal]);
-
-  // Lösung zeigen: restliche Züge nacheinander abspielen.
-  useEffect(() => {
-    if (!solutionSignal || phase === "solved" || phase === "intro") return;
-    let cancelled = false;
-    (async () => {
-      setP("busy");
-      const sol = full ? { moves: full.moves, themes: full.themes, rating: undefined } : await api.puzzles.solution(puzzle.id);
-      if (cancelled) return;
-      let pos = new Chess(puzzle.fen);
-      pos.move({ from: sol.moves[0]!.slice(0, 2), to: sol.moves[0]!.slice(2, 4), promotion: sol.moves[0]![4] });
-      for (const m of sol.moves.slice(1, 1 + 2 * solver.current.length)) pos.move({ from: m.slice(0, 2), to: m.slice(2, 4), promotion: m[4] });
-      setFen(pos.fen());
-      for (const m of sol.moves.slice(1 + 2 * solver.current.length)) {
-        await wait(650);
-        if (cancelled) return;
-        const r = apply(pos.fen(), m);
-        pos = new Chess(r.fen);
-        setFen(r.fen);
-        setLast(r.last);
-      }
-      failed.current = true;
-      setP("failed", "bad");
-      onOutcome?.({ status: "failed", clean: false, rating: sol.rating, themes: sol.themes, solution: sol.moves });
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [solutionSignal]);
 
   const chess = useMemo(() => new Chess(fen), [fen]);
   const dests = useMemo(() => {
@@ -189,17 +188,18 @@ export function PuzzleBoard({ puzzle, full, failFast, onOutcome, onPhase, hintSi
   const checkSq = chess.inCheck() ? (chess.board().flat().find((s) => s?.type === "k" && s.color === chess.turn())?.square ?? null) : null;
 
   return (
-    <div className="puzzle-board" data-puzzle-id={puzzle.id} data-phase={phase}>
-    <Board
-      fen={fen}
-      orientation={orientation}
-      lastMove={last}
-      check={checkSq}
-      movable={phase === "play" ? orientation : null}
-      dests={dests}
-      onMove={(f, t, p) => void onMove(f, t, p).catch(() => undefined)}
-      marks={marks}
-    />
+    <div className={`puzzle-board ${shake ? "shake" : ""}`} data-puzzle-id={puzzle.id} data-phase={phase}>
+      <Board
+        fen={fen}
+        orientation={orientation}
+        lastMove={last}
+        check={checkSq}
+        movable={phase === "play" ? orientation : null}
+        dests={dests}
+        onMove={(f, t, p) => void onMove(f, t, p).catch(() => undefined)}
+        marks={marks}
+        shapes={shapes}
+      />
     </div>
   );
 }

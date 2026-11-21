@@ -100,7 +100,7 @@ Elo-System: Erwartung `1 / (1 + 10^((Puzzle − Spieler) / 400))`.
 | `GET` | `/api/v1/puzzles/daily` | Tagespuzzle |
 | `GET` | `/api/v1/puzzles/{id}` | Bestimmtes Puzzle |
 | `POST` | `/api/v1/puzzles/{id}/check` | `{"moves": ["d5c7", …]}`: alle bisherigen eigenen Züge, Antwort `correct` (+ Gegenzug) / `wrong` / `solved` |
-| `POST` | `/api/v1/puzzles/{id}/hint` | Startfeld des nächsten Zugs |
+| `POST` | `/api/v1/puzzles/{id}/hint` | Tipp in zwei Stufen: `{"solved": 0}` nennt das Startfeld, mit `"level": 2` zusätzlich das Zielfeld |
 | `POST` | `/api/v1/puzzles/{id}/solution` | Lösung (zählt als nicht gelöst) |
 | `GET` | `/api/v1/puzzles/stats` | Rating, Serie, Verlauf, Themen-Statistik |
 | `GET` | `/api/v1/puzzles/storm` · `POST …/storm/result` | Puzzle-Sturm |

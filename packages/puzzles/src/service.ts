@@ -174,13 +174,15 @@ export class PuzzleService {
     return result;
   }
 
-  hint(userId: string, id: string, solvedMoves: number): { square: string | null } {
+  /** Tipp in zwei Stufen: Stufe 1 nennt die Figur (Startfeld), Stufe 2 zusätzlich das Zielfeld. */
+  hint(userId: string, id: string, solvedMoves: number, level: 1 | 2 = 1): { square: string | null; to: string | null } {
     const p = this.find(userId, id);
     const key = `${userId}:${id}`;
     const s = this.sessions.get(key) ?? { failed: false, hinted: false, recorded: false };
     s.hinted = true;
     this.sessions.set(key, s);
-    return { square: hintSquare(p, solvedMoves) };
+    const move = p.moves[1 + 2 * solvedMoves];
+    return { square: hintSquare(p, solvedMoves), to: level >= 2 && move ? move.slice(2, 4) : null };
   }
 
   /** Lösung anzeigen zählt als nicht gelöst. */

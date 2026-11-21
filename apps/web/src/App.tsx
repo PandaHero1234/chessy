@@ -34,6 +34,10 @@ export function App() {
   const [toasts, setToasts] = useState<{ id: number; msg: string }[]>([]);
   const [online, setOnline] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Menü schließt sich bei jedem Seitenwechsel.
+  useEffect(() => setMenuOpen(false), [path]);
 
   const toast = useCallback((msg: string) => {
     const id = Math.random();
@@ -74,6 +78,7 @@ export function App() {
   else if (path === "/developers") page = <Developers />;
   else if (path === "/settings") page = <SettingsPage />;
   else page = <Home />;
+  const pageKind = gameMatch ? "game" : path.startsWith("/puzzles") ? "puzzles" : path === "/" ? "home" : "other";
 
   return (
     <AccountCtx.Provider value={account}>
@@ -84,7 +89,7 @@ export function App() {
               <img src={pieceUrl("wN")} alt="" />
               <span>Chessy</span>
             </a>
-            <nav>
+            <nav className={menuOpen ? "open" : ""}>
               {NAV.map(([to, label]) => (
                 <a key={to} href={href(to)} onClick={onLinkClick} className={(to === "/" ? path === "/" : path.startsWith(to)) ? "active" : ""}>
                   {label}
@@ -93,10 +98,14 @@ export function App() {
             </nav>
             <div className="account-chip" title={online ? "Verbunden" : "Verbindung getrennt"}>
               <span className={`status-dot ${online ? "on" : "off"}`} />
-              {account?.username ?? "…"}
+              <span className="account-name">{account?.username ?? "…"}</span>
             </div>
+            <button className="menu-btn" aria-label="Menü" aria-expanded={menuOpen} onClick={() => setMenuOpen((o) => !o)}>
+              {menuOpen ? "✕" : "☰"}
+            </button>
           </header>
-          <main>{error ? <div className="page narrow center error-box">{error}</div> : page}</main>
+          {menuOpen && <div className="menu-backdrop" onClick={() => setMenuOpen(false)} />}
+          <main data-page={pageKind}>{error ? <div className="page narrow center error-box">{error}</div> : page}</main>
           <footer className="footer muted small">
             Chessy · Engine: Stockfish (GPLv3) · Figuren: Colin M.L. Burnett (GPLv2+) ·{" "}
             {STATIC ? <a href="https://github.com/PandaHero1234/chessy">Quellcode</a> : <a href="/docs">API-Doku</a>}

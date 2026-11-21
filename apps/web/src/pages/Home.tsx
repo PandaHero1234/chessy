@@ -22,13 +22,47 @@ const LEVEL_ELO = ["", "≈ 400", "≈ 800", "≈ 1100", "≈ 1400", "≈ 1700",
 
 const HERO_FEN = "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/3P1N2/PPP2PPP/RNBQK2R w KQkq - 1 5";
 
+interface Prefs {
+  mode: Mode;
+  tc: string;
+  level: number;
+  color: "white" | "random" | "black";
+}
+const PREFS_KEY = "chessy.newGame";
+function loadPrefs(): Prefs {
+  const d: Prefs = { mode: "ai", tc: "600+5", level: 3, color: "random" };
+  try {
+    const p = { ...d, ...JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") } as Prefs;
+    parseTimeControl(p.tc);
+    if (!MODES.some((m) => m.id === p.mode) || (STATIC && (p.mode === "online" || p.mode === "friend"))) p.mode = "ai";
+    if (!(p.level >= 1 && p.level <= 8)) p.level = d.level;
+    if (!["white", "random", "black"].includes(p.color)) p.color = d.color;
+    return p;
+  } catch {
+    return d;
+  }
+}
+
 export function Home() {
   const account = useAccount();
   const toast = useToast();
-  const [mode, setMode] = useState<Mode>("ai");
-  const [tc, setTc] = useState("600+5");
-  const [level, setLevel] = useState(3);
-  const [color, setColor] = useState<"white" | "random" | "black">("random");
+  // Die letzte Auswahl wird gemerkt, damit der Schnellstart mit einem Tipp funktioniert.
+  const [prefs, setPrefs] = useState(loadPrefs);
+  const { mode, tc, level, color } = prefs;
+  const update = (patch: Partial<Prefs>) =>
+    setPrefs((p) => {
+      const next = { ...p, ...patch };
+      try {
+        localStorage.setItem(PREFS_KEY, JSON.stringify(next));
+      } catch {
+        /* privater Modus */
+      }
+      return next;
+    });
+  const setMode = (m: Mode) => update({ mode: m });
+  const setTc = (t: string) => update({ tc: t });
+  const setLevel = (l: number) => update({ level: l });
+  const setColor = (c: Prefs["color"]) => update({ color: c });
   const [busy, setBusy] = useState(false);
   const [games, setGames] = useState<GameSnapshot[]>([]);
 
@@ -47,6 +81,18 @@ export function Home() {
       }
       const opp = mode === "ai" ? { type: "ai" as const, level } : mode === "local" ? { type: "local" as const } : { type: "friend" as const };
       const g = await api.createGame(opp, tc, color);
+      navigate(`/game/${g.id}`);
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const quickAi = async () => {
+    setBusy(true);
+    try {
+      const g = await api.createGame({ type: "ai", level }, tc, color);
       navigate(`/game/${g.id}`);
     } catch (e) {
       toast((e as Error).message);
@@ -83,6 +129,36 @@ export function Home() {
         <div className="hero-board" aria-hidden>
           <Board fen={HERO_FEN} orientation="white" movable={null} dests={new Map()} lastMove={["f1", "c4"]} />
         </div>
+      </section>
+
+      <section className="quick-start" aria-label="Schnellstart">
+        {running[0] && (
+          <a className="quick-tile" href={href(`/game/${running[0].id}`)} onClick={onLinkClick}>
+            <span className="quick-icon">▶</span>
+            <span className="quick-text">
+              <b>Partie fortsetzen</b>
+              <span className="muted small">
+                {running[0].white.username} vs {running[0].black.username}
+              </span>
+            </span>
+          </a>
+        )}
+        <button className="quick-tile" onClick={quickAi} disabled={busy || !account}>
+          <span className="quick-icon">🤖</span>
+          <span className="quick-text">
+            <b>Gegen den Computer</b>
+            <span className="muted small">
+              Sofort los · {describeTimeControl(parseTimeControl(tc))} · Stufe {level}
+            </span>
+          </span>
+        </button>
+        <a className="quick-tile" href={href("/puzzles")} onClick={onLinkClick}>
+          <span className="quick-icon">🧩</span>
+          <span className="quick-text">
+            <b>Puzzle lösen</b>
+            <span className="muted small">Passend zu deinem Rating</span>
+          </span>
+        </a>
       </section>
 
       <section className="glass card new-game">
@@ -149,13 +225,15 @@ export function Home() {
                 </div>
               </div>
             )}
-            <div className="summary muted">
-              {MODES.find((m) => m.id === mode)!.title} · {describeTimeControl(parseTimeControl(tc))}
-              {mode === "ai" && ` · Stufe ${level}`}
+            <div className="play-bar">
+              <div className="summary muted">
+                {MODES.find((m) => m.id === mode)!.title} · {describeTimeControl(parseTimeControl(tc))}
+                {mode === "ai" && ` · Stufe ${level}`}
+              </div>
+              <button className="btn primary big full start-btn" disabled={busy || !account} onClick={start}>
+                {mode === "online" ? "Gegner suchen" : mode === "friend" ? "Einladung erstellen" : "Spielen"}
+              </button>
             </div>
-            <button className="btn primary big full" disabled={busy || !account} onClick={start}>
-              {mode === "online" ? "Gegner suchen" : mode === "friend" ? "Einladung erstellen" : "Spielen"}
-            </button>
           </div>
         </div>
       </section>

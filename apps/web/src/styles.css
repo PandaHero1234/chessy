@@ -1385,7 +1385,7 @@ main {
 /* ------------------------------------------------------------------ Responsiv */
 @media (max-width: 1000px) {
   .game-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .side-panel {
     position: static;
@@ -1557,28 +1557,6 @@ main {
   font-size: 0.72rem;
   opacity: 0.7;
 }
-.puzzle-status {
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: var(--panel);
-  border: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  transition: background 0.2s, border-color 0.2s;
-}
-.puzzle-status-title {
-  font-weight: 700;
-  font-size: 1.05rem;
-}
-.puzzle-status.good {
-  background: color-mix(in srgb, var(--accent) 15%, var(--panel));
-  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
-}
-.puzzle-status.bad {
-  background: color-mix(in srgb, var(--danger) 14%, var(--panel));
-  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
-}
 .theme-tags {
   display: flex;
   flex-wrap: wrap;
@@ -1598,11 +1576,6 @@ main {
 .hdot.win {
   background: var(--accent);
 }
-.storm-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
 .storm-clock {
   font-family: ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 2.2rem;
@@ -1617,10 +1590,6 @@ main {
   font-weight: 700;
   color: var(--accent);
   line-height: 1;
-}
-.storm-meta {
-  display: flex;
-  justify-content: space-between;
 }
 .strikes .x {
   margin-left: 6px;
@@ -1637,9 +1606,935 @@ main {
 }
 @media (max-width: 1000px) {
   .puzzle-layout {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 .puzzle-board {
   width: 100%;
+}
+
+/* ------------------------------------------------------------------ Puzzle-Ablauf: Statuszeile, Lösung, Aktionsleiste */
+.puzzle-column {
+  gap: 8px;
+  min-width: 0;
+  /* Statuszeile, Lösungszeile und Aktionsleiste sollen mit dem Brett auf den Bildschirm passen */
+  max-width: min(max(320px, calc(100vh - 350px)), 760px);
+}
+.puzzle-statusbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  transition: background 0.2s, border-color 0.2s;
+}
+.puzzle-statusbar.good {
+  background: color-mix(in srgb, var(--accent) 22%, var(--panel));
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.puzzle-statusbar.bad {
+  background: color-mix(in srgb, var(--danger) 20%, var(--panel));
+  border-color: color-mix(in srgb, var(--danger) 55%, transparent);
+}
+.ps-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-weight: 800;
+  background: var(--panel-strong);
+}
+.puzzle-statusbar.good .ps-icon {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.puzzle-statusbar.bad .ps-icon {
+  background: var(--danger);
+  color: #fff;
+}
+.ps-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+.ps-title {
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ps-sub {
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ps-rating {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  white-space: nowrap;
+}
+.ps-rating .rating-delta {
+  font-size: 0.85rem;
+}
+.sheet-btn,
+.sheet-head,
+.sheet-done,
+.sheet-backdrop {
+  display: none;
+}
+.puzzle-stage {
+  position: relative;
+}
+.puzzle-board.shake {
+  animation: shake 0.4s;
+}
+@keyframes shake {
+  20% {
+    transform: translateX(-7px);
+  }
+  40% {
+    transform: translateX(6px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+.result-flash {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 22px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+  color: var(--accent-ink);
+  font-size: 1.4rem;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  animation: result-flash 1.9s ease-out forwards;
+}
+.rf-icon {
+  font-size: 1.6rem;
+}
+.rf-delta {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 1.1rem;
+}
+@keyframes result-flash {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.5);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.08);
+  }
+  20% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  72% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -62%) scale(0.96);
+  }
+}
+.solution-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+}
+.solution-moves {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px;
+}
+.sol-move {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  cursor: pointer;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.sol-move.context {
+  color: var(--muted);
+  font-weight: 500;
+}
+.sol-move.mine {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.sol-move.current {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.sol-num {
+  opacity: 0.65;
+  font-weight: 500;
+  margin-right: 4px;
+}
+.step-btn {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-strong);
+  cursor: pointer;
+  font-size: 1rem;
+}
+.step-btn:disabled {
+  opacity: 0.35;
+}
+.progress-dots {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 4px;
+}
+.progress-dots .muted {
+  margin-left: 6px;
+}
+.dot-step {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--muted);
+}
+.dot-step.now {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.dot-step.done {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.action-bar {
+  display: flex;
+  gap: 8px;
+}
+.action-bar .btn {
+  flex: 1;
+  min-height: 48px;
+}
+.action-bar .next-btn {
+  flex: 2;
+  font-size: 1.05rem;
+}
+.hdot {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+.history-dots {
+  gap: 6px;
+}
+.puzzle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.storm-hud {
+  gap: 14px;
+}
+.storm-hud .storm-clock {
+  font-size: 1.5rem;
+}
+.storm-hud .storm-combo {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.storm-hud .storm-score {
+  font-size: 1.9rem;
+  min-width: 1.2ch;
+  text-align: right;
+}
+.strikes {
+  white-space: nowrap;
+  font-size: 1.1rem;
+}
+.strikes .x {
+  margin-left: 4px;
+}
+.drop-target {
+  position: absolute;
+  inset: -22%;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.22);
+  z-index: 2;
+  pointer-events: none;
+}
+.menu-btn,
+.menu-backdrop {
+  display: none;
+}
+button,
+a,
+select,
+input,
+label {
+  touch-action: manipulation;
+}
+
+/* Puzzle-Optionen als Auszug von unten, sobald die Seitenleiste keinen Platz mehr hat */
+@media (max-width: 1000px) {
+  .sheet-btn {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    margin: -4px -8px -4px 0;
+    flex-shrink: 0;
+    border-radius: 12px;
+    border: none;
+    background: transparent;
+    font-size: 1.2rem;
+    cursor: pointer;
+  }
+  .puzzle-panel.sheet {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 120;
+    max-height: 84vh;
+    max-height: 84dvh;
+    overflow-y: auto;
+    border-radius: 20px 20px 0 0;
+    padding: 12px 16px calc(16px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--bg) 97%, var(--text) 3%);
+    backdrop-filter: none;
+    transform: translateY(105%);
+    visibility: hidden;
+    transition: transform 0.25s cubic-bezier(0.25, 0.8, 0.35, 1), visibility 0s 0.25s;
+  }
+  .puzzle-panel.sheet.open {
+    transform: none;
+    visibility: visible;
+    transition: transform 0.25s cubic-bezier(0.25, 0.8, 0.35, 1);
+  }
+  .sheet-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 110;
+    background: rgba(5, 8, 14, 0.55);
+    animation: fade 0.2s;
+  }
+  .sheet-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .sheet-close {
+    width: 44px;
+    height: 44px;
+    margin-right: -8px;
+    border: none;
+    background: transparent;
+    font-size: 1.1rem;
+    cursor: pointer;
+  }
+  .sheet-done {
+    display: inline-flex;
+    min-height: 48px;
+  }
+  .storm-panel {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------ Smartphone */
+@media (max-width: 760px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px; /* darunter zoomt iOS beim Antippen hinein */
+  }
+  .btn,
+  .chip,
+  .icon-btn,
+  .segmented button {
+    min-height: 44px;
+  }
+  .btn.small {
+    min-height: 40px;
+  }
+  .puzzle-filters .chip {
+    padding: 8px 12px;
+    font-size: 0.9rem;
+  }
+
+  /* Kopfleiste: eine Zeile, Navigation im Menü */
+  .topbar {
+    flex-wrap: nowrap;
+    gap: 8px;
+    min-height: 52px;
+    padding: 4px 8px 4px 12px;
+    padding-top: calc(4px + env(safe-area-inset-top));
+  }
+  .logo {
+    font-size: 1.25rem;
+    min-height: 44px;
+  }
+  .logo img {
+    width: 30px;
+    height: 30px;
+  }
+  .account-chip {
+    margin-left: auto;
+    max-width: 42vw;
+    padding: 5px 10px;
+    font-size: 0.85rem;
+  }
+  .account-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .menu-btn {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    border: none;
+    background: transparent;
+    font-size: 1.35rem;
+    cursor: pointer;
+  }
+  .topbar nav {
+    display: none;
+    order: 0;
+    flex-basis: auto;
+  }
+  .topbar nav.open {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 60;
+    padding: 8px 12px 14px;
+    gap: 4px;
+    overflow: visible;
+    background: color-mix(in srgb, var(--bg) 97%, var(--text) 3%);
+    border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow);
+  }
+  .topbar nav.open a {
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    border-radius: 12px;
+    font-size: 1.05rem;
+  }
+  .menu-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    background: rgba(5, 8, 14, 0.45);
+  }
+  main {
+    min-height: calc(100vh - 120px);
+    min-height: calc(100dvh - 120px);
+  }
+  .toasts {
+    bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+
+  /* Puzzle: Status, Brett, Lösungszeile und Aktionsleiste passen ohne Scrollen auf einen Bildschirm */
+  main[data-page="puzzles"] .page {
+    padding: 8px 0 calc(76px + env(safe-area-inset-bottom));
+    gap: 6px;
+  }
+  main[data-page="puzzles"] + .footer,
+  main[data-page="game"] + .footer {
+    display: none;
+  }
+  .puzzle-tabs {
+    padding: 0 8px;
+  }
+  .puzzle-tabs a {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+  }
+  .puzzles-page .page.narrow {
+    padding: 0 12px !important;
+  }
+  .puzzle-layout {
+    gap: 0;
+  }
+  .puzzle-column {
+    gap: 6px;
+    /* Brettgröße richtet sich nach Breite UND Höhe: Kopfleiste 52 + Tabs 58 + Status 54 + Lösungszeile 50 + Aktionsleiste 72 */
+    max-width: min(100%, calc(100vh - 296px));
+    max-width: min(100%, calc(100dvh - 296px - env(safe-area-inset-bottom)));
+  }
+  .puzzle-statusbar {
+    margin: 0 6px;
+    padding: 4px 10px;
+  }
+  .puzzle-stage .board {
+    border-radius: 4px;
+  }
+  .solution-strip {
+    height: 46px;
+    padding: 0 6px;
+    overflow: hidden;
+  }
+  .action-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    padding: 8px 10px calc(8px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid var(--border);
+  }
+  .action-bar .icon-only {
+    flex: 0 0 56px;
+    padding: 0;
+    font-size: 1.2rem;
+  }
+  .action-bar .icon-only .btn-label {
+    display: none;
+  }
+  .result-flash {
+    font-size: 1.25rem;
+  }
+  .scan-row {
+    flex-wrap: wrap;
+  }
+}
+html,
+body {
+  overflow-x: clip;
+}
+
+/* ------------------------------------------------------------------ Schnellstart, Zeit-Tabs, Partie-Leisten */
+.quick-start {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px;
+}
+.quick-tile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 64px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.12s, background 0.15s, border-color 0.15s;
+}
+.quick-tile:hover {
+  background: var(--panel-strong);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+}
+.quick-tile:active {
+  transform: scale(0.99);
+}
+.quick-tile:disabled {
+  opacity: 0.6;
+}
+.quick-icon {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent) 18%, var(--panel-strong));
+  font-size: 1.4rem;
+}
+.quick-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+.play-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.tc-tabs,
+.move-strip,
+.game-bar {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  /* Startseite: Schnellstart oben, Auswahl kompakt, „Spielen“ bleibt unten sichtbar */
+  .hero {
+    padding: 0;
+    gap: 0;
+  }
+  .hero-board,
+  .hero .lead,
+  .hero-links {
+    display: none;
+  }
+  .hero h1 {
+    font-size: 1.6rem;
+    margin: 0;
+  }
+  .page {
+    gap: 14px;
+  }
+  main[data-page="home"] .page {
+    padding-top: 12px;
+    padding-bottom: calc(92px + env(safe-area-inset-bottom));
+  }
+  main[data-page="home"] + .footer {
+    padding-bottom: calc(100px + env(safe-area-inset-bottom));
+  }
+  .quick-start {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .mode-card {
+    padding: 12px;
+  }
+  .mode-icon {
+    font-size: 1.3rem;
+  }
+  .new-game-grid {
+    gap: 18px;
+  }
+  /* backdrop-filter würde die fest angeheftete „Spielen“-Leiste an die Karte statt an den Bildschirm binden */
+  .new-game.glass {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .tc-tabs {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 0 -4px;
+    padding: 0 4px;
+  }
+  .tc-tabs button {
+    flex-shrink: 0;
+    min-height: 44px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--muted);
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .tc-tabs button.active {
+    background: var(--panel-strong);
+    color: var(--text);
+    border-color: var(--accent);
+  }
+  .tc-group:not(.active):not(.custom),
+  .tc-group.active .tc-group-label {
+    display: none;
+  }
+  .tc-chips .chip {
+    flex: 1;
+  }
+  .play-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid var(--border);
+  }
+  .play-bar .summary {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+    font-size: 0.82rem;
+    line-height: 1.25;
+  }
+  .play-bar .btn.big.full {
+    width: auto;
+    flex-shrink: 0;
+    padding: 12px 22px;
+    min-height: 52px;
+  }
+
+  /* Partie: Brett, Uhren, Zugleiste und Aktionen ohne Scrollen */
+  main[data-page="game"] .page {
+    padding: 6px 0 calc(78px + env(safe-area-inset-bottom));
+    gap: 8px;
+  }
+  .game-page .board-column {
+    gap: 6px;
+    /* Kopfleiste 52 + zwei Spielerzeilen 104 + Zugleiste 44 + Aktionsleiste 72 + Abstände */
+    max-width: min(100%, calc(100vh - 304px));
+    max-width: min(100%, calc(100dvh - 304px - env(safe-area-inset-bottom)));
+  }
+  .game-page .player-bar {
+    padding: 2px 10px;
+    min-height: 48px;
+  }
+  .game-page .player-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+  .game-page .board {
+    border-radius: 4px;
+  }
+  .game-page .offer {
+    margin: 0 8px;
+  }
+  .move-strip {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 46px;
+    padding: 0 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .mvs {
+    flex-shrink: 0;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 4px 8px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .mvs.current {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+  .game-page .side-panel {
+    margin: 0 8px;
+  }
+  .game-page .side-panel .movelist,
+  .game-page .side-panel .nav-row,
+  .game-page .side-panel .actions {
+    display: none;
+  }
+  .game-bar {
+    display: flex;
+    gap: 4px;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid var(--border);
+  }
+  .bar-btn {
+    flex: 1;
+    min-width: 0;
+    min-height: 54px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    border: none;
+    border-radius: 12px;
+    background: transparent;
+    cursor: pointer;
+  }
+  .bar-btn:active {
+    background: var(--panel-strong);
+  }
+  .bar-btn:disabled {
+    opacity: 0.35;
+  }
+  .bar-icon {
+    font-size: 1.2rem;
+    line-height: 1.2;
+  }
+  .bar-label {
+    font-size: 0.66rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .bar-btn.on .bar-icon,
+  .bar-btn.on .bar-label {
+    color: var(--accent);
+  }
+  .bar-btn.primary {
+    background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+  }
+  .bar-btn.primary .bar-icon,
+  .bar-btn.primary .bar-label {
+    color: var(--accent-ink);
+  }
+  .bar-btn.danger {
+    background: var(--danger);
+  }
+  .bar-btn.danger .bar-icon,
+  .bar-btn.danger .bar-label {
+    color: #fff;
+  }
+  .modal {
+    padding: 24px 20px;
+  }
+}
+
+.sheet-modes {
+  display: none;
+}
+
+/* Sehr kurze Bildschirme (kleine Handys mit eingeblendeten Browserleisten): Platz für das Brett freimachen */
+@media (max-width: 760px) and (max-height: 620px) {
+  .puzzles-page.trainer .puzzle-tabs {
+    display: none;
+  }
+  .puzzles-page.trainer .puzzle-column {
+    max-width: min(100%, calc(100vh - 246px));
+    max-width: min(100%, calc(100dvh - 246px - env(safe-area-inset-bottom)));
+  }
+  .sheet-modes {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .sheet-modes a {
+    flex-shrink: 0;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    padding: 0 14px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--muted);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .sheet-modes a.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+  }
+  .move-strip {
+    display: none;
+  }
+  .game-page .side-panel .movelist {
+    display: block;
+  }
+  .game-page .board-column {
+    max-width: min(100%, calc(100vh - 236px));
+    max-width: min(100%, calc(100dvh - 236px - env(safe-area-inset-bottom)));
+  }
+  .game-page .player-bar {
+    min-height: 40px;
+    padding: 0 10px;
+  }
+  .game-page .player-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 0.8rem;
+  }
+  .game-page .clock {
+    font-size: 1.1rem;
+    padding: 3px 10px;
+    min-width: 84px;
+  }
+  .game-page .captured {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  /* Modus-Auswahl als eine kompakte Zeile */
+  .mode-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    margin-bottom: 18px;
+  }
+  .mode-card {
+    align-items: center;
+    text-align: center;
+    padding: 10px 2px;
+    min-height: 64px;
+  }
+  .mode-title {
+    font-size: 0.82rem;
+  }
+  .mode-text {
+    display: none;
+  }
 }

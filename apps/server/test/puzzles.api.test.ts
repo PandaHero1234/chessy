@@ -55,7 +55,8 @@ describe("Puzzle-API", () => {
   });
 
   it("Tipp, Lösung, Statistik, Tagespuzzle, Sturm", async () => {
-    expect((await post("/puzzles/hard/hint", { solved: 0 })).json()).toEqual({ square: "d5" });
+    expect((await post("/puzzles/hard/hint", { solved: 0 })).json()).toEqual({ square: "d5", to: null });
+    expect((await post("/puzzles/hard/hint", { solved: 0, level: 2 })).json()).toEqual({ square: "d5", to: "c7" });
     const sol = (await post("/puzzles/hard/solution")).json();
     expect(sol.moves).toEqual(["h7h6", "d5c7", "e8e7", "c7a8"]);
     const stats = (await get("/puzzles/stats")).json();

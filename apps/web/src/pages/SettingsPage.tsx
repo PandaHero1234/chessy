@@ -11,7 +11,7 @@ export function SettingsPage() {
   const toast = useToast();
   const [name, setName] = useState("");
 
-  const toggle = (key: "sound" | "coordinates" | "legalMoves" | "animation" | "autoQueen", label: string) => (
+  const toggle = (key: "sound" | "coordinates" | "legalMoves" | "animation" | "autoQueen" | "autoNext" | "haptics", label: string) => (
     <label className="toggle">
       <input type="checkbox" checked={s[key]} onChange={(e) => updateSettings({ [key]: e.target.checked })} />
       <span className="toggle-track" />
@@ -40,6 +40,8 @@ export function SettingsPage() {
           {toggle("animation", "Figuren animieren")}
           {toggle("autoQueen", "Automatisch zur Dame umwandeln")}
           {toggle("sound", "Sounds")}
+          {toggle("haptics", "Vibration bei Puzzle-Feedback (nur Android)")}
+          {toggle("autoNext", "Puzzles: nach dem Lösen automatisch weiter")}
         </div>
       </section>
       <section className="glass card">

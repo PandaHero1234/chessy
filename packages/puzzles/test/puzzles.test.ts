@@ -202,7 +202,8 @@ describe("PuzzleService", () => {
   it("mit Tipp gelöst verändert das Rating nicht", () => {
     const s = new PuzzleService(puzzles, new MemoryPuzzleStore());
     const p = s.next("u3");
-    expect(s.hint("u3", p.id, 0)).toEqual({ square: "d8" });
+    expect(s.hint("u3", p.id, 0)).toEqual({ square: "d8", to: null });
+    expect(s.hint("u3", p.id, 0, 2)).toEqual({ square: "d8", to: "d1" });
     expect(s.check("u3", p.id, ["d8d1"]).rating!.delta).toBe(0);
   });
 
