@@ -79,6 +79,27 @@ export class GameService {
     return token ? this.store.userByToken(token) : undefined;
   }
 
+  /** Neuer Anzeigename (z. B. beim Anlegen eines Kontos): in laufenden und gespeicherten Partien nachziehen. */
+  renamePlayer(userId: string, username: string) {
+    const fix = (p: PlayerInfo, local: boolean) => {
+      if (p.id !== userId || p.kind === "ai") return false;
+      p.username = local && p.username.endsWith(" (2)") ? `${username} (2)` : username;
+      return true;
+    };
+    for (const g of this.games.values()) {
+      const local = g.isLocal();
+      fix(g.players.white, local);
+      fix(g.players.black, local);
+    }
+    for (const snap of this.store.gamesOf(userId, 100_000)) {
+      const local = snap.white.kind === "local";
+      const changed = [fix(snap.white, local), fix(snap.black, local)].some(Boolean);
+      if (!changed) continue;
+      const live = this.games.get(snap.id);
+      this.store.saveGame(live ? this.snapshot(live) : { ...snap, pgn: snap.pgn.replace(/\[(White|Black) "[^"]*"\]/g, (m, side: "White" | "Black") => `[${side} "${side === "White" ? snap.white.username : snap.black.username}"]`) });
+    }
+  }
+
   // ---------------------------------------------------------------- Partien
 
   createGame(user: StoredUser, input: CreateGameInput): GameSnapshot {

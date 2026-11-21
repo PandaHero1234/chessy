@@ -136,7 +136,8 @@ export interface Seek {
 export interface Account {
   id: string;
   username: string;
-  kind: "guest" | "bot" | "board";
+  /** guest = anonym (Token nur auf diesem Gerät), user = mit Benutzername und Passwort angemeldet, bot/board = API-Zugänge. */
+  kind: "guest" | "user" | "bot" | "board";
   created_at: number;
 }
 

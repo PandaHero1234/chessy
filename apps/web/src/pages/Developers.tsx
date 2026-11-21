@@ -5,6 +5,7 @@ import { STATIC } from "../lib/paths.ts";
 
 const ENDPOINTS: [string, string, string][] = [
   ["POST", "/api/v1/auth/{guest|bot|board}", "Account anlegen, Token erhalten"],
+  ["POST", "/api/v1/auth/{register|login|logout}", "Optionales Konto: Gast sichern, anmelden, abmelden"],
   ["POST", "/api/v1/games", "Partie: Computer, lokal oder Einladung"],
   ["POST", "/api/v1/seeks", "Lobby: Gegner suchen"],
   ["GET", "/api/v1/stream/events", "NDJSON: gameStart, gameFinish …"],

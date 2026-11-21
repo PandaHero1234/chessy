@@ -14,6 +14,7 @@ import { StockfishPool, type Engine } from "./ai/stockfish.ts";
 import { ChessComClient } from "./chesscom/client.ts";
 import { schemas, ref, errorResponses, timeControlInput } from "./routes/schemas.ts";
 import { registerPuzzleRoutes } from "./routes/puzzles.ts";
+import { AuthService, PASSWORD_MIN, toAccount } from "./auth.ts";
 import { PuzzleService, sourceFromArray, type Puzzle } from "@chessy/puzzles";
 import { diskSource } from "@chessy/puzzles/node";
 
@@ -66,7 +67,8 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
         description:
           "API-first Schachserver. Alle Clients (Web-UI, Bots, E-Boards) nutzen dieselbe API.\n\n" +
           "**Auth:** `POST /api/v1/auth/guest` liefert ein Token. Senden als `Authorization: Bearer <token>` " +
-          "(Streams/WebSocket alternativ `?token=`).\n\n" +
+          "(Streams/WebSocket alternativ `?token=`). Login ist optional: `POST /auth/register` macht aus dem Gast ein Konto " +
+          "mit Benutzername und Passwort (Partien und Puzzle-Fortschritt bleiben), `POST /auth/login` meldet ein weiteres Gerät an.\n\n" +
           "**Streams:** `GET /games/{id}/stream` und `GET /stream/events` liefern NDJSON (ein JSON-Objekt pro Zeile, " +
           "leere Zeilen = Keep-alive) im Stil der Lichess Board API. `GET /ws` liefert dieselben Events per WebSocket.\n\n" +
           "**Datenformat:** Feldnamen wie in der chess.com Public API (`time_control`, `time_class`, `fen`, `pgn`, Ergebniscodes).",
@@ -108,7 +110,94 @@ export async function buildApp(opts: AppOptions = {}): Promise<{ app: FastifyIns
     req.user = user;
   };
   const idParam = { type: "object", properties: { id: { type: "string" } }, required: ["id"] };
-  const account = (u: StoredUser) => ({ id: u.id, username: u.username, kind: u.kind, created_at: u.created_at });
+  const account = toAccount;
+  const authService = new AuthService(store, service);
+  const credentials = {
+    type: "object",
+    properties: {
+      username: { type: "string", minLength: 1, maxLength: 40 },
+      password: { type: "string", minLength: 1, maxLength: 200 },
+    },
+    required: ["username", "password"],
+  };
+  const session = {
+    201: { type: "object", properties: { account: ref("Account"), token: { type: "string" } }, required: ["account", "token"] },
+    200: { type: "object", properties: { account: ref("Account"), token: { type: "string" } }, required: ["account", "token"] },
+    ...errorResponses,
+    429: ref("Error"),
+  };
+
+  // ------------------------------------------------------------ Login (optional)
+  app.post(
+    `${API}/auth/register`,
+    {
+      schema: {
+        tags: ["account"],
+        summary: `Konto anlegen. Mit Gast-Token wird dieser Gast zum Konto (Partien, Puzzle-Rating, Verlauf bleiben); ohne Token entsteht ein neues Konto. Passwort mindestens ${PASSWORD_MIN} Zeichen.`,
+        body: credentials,
+        response: session,
+      },
+    },
+    async (req, reply) => {
+      const token = tokenOf(req);
+      const current = token ? service.authenticate(token) : undefined;
+      if (token && !current) throw new ApiError(401, "unauthorized", "Token ungültig");
+      const { username, password } = req.body as { username: string; password: string };
+      return reply.code(201).send(await authService.register(current, username, password));
+    },
+  );
+
+  app.post(
+    `${API}/auth/login`,
+    {
+      schema: {
+        tags: ["account"],
+        summary: "Anmelden: liefert ein neues Sitzungs-Token für dieses Gerät. Nach 10 Fehlversuchen in 15 Minuten wird kurz gesperrt.",
+        security: [],
+        body: credentials,
+        response: session,
+      },
+    },
+    async (req) => {
+      const { username, password } = req.body as { username: string; password: string };
+      return authService.login(username, password, req.ip);
+    },
+  );
+
+  app.post(
+    `${API}/auth/logout`,
+    {
+      preHandler: auth,
+      schema: {
+        tags: ["account"],
+        summary: "Abmelden: beendet die Sitzung dieses Tokens, mit `everywhere: true` alle Sitzungen des Kontos",
+        body: { type: ["object", "null"], properties: { everywhere: { type: "boolean", default: false } } },
+        response: { 200: { type: "object", properties: { ended: { type: "integer" } } }, ...errorResponses },
+      },
+    },
+    async (req) => authService.logout(req.user, tokenOf(req)!, (req.body as { everywhere?: boolean } | null)?.everywhere ?? false),
+  );
+
+  app.post(
+    `${API}/auth/password`,
+    {
+      preHandler: auth,
+      schema: {
+        tags: ["account"],
+        summary: "Passwort ändern. Alle anderen Sitzungen werden beendet, diese bleibt angemeldet.",
+        body: {
+          type: "object",
+          properties: { old_password: { type: "string", maxLength: 200 }, new_password: { type: "string", maxLength: 200 } },
+          required: ["old_password", "new_password"],
+        },
+        response: { 200: { type: "object", properties: { ended: { type: "integer" } } }, ...errorResponses },
+      },
+    },
+    async (req) => {
+      const b = req.body as { old_password: string; new_password: string };
+      return authService.changePassword(req.user, tokenOf(req)!, b.old_password, b.new_password);
+    },
+  );
 
   // ------------------------------------------------------------ Account
   app.post(

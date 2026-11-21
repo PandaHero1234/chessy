@@ -2583,3 +2583,119 @@ body {
     display: none;
   }
 }
+
+/* ------------------------------------------------------------------ Konto */
+.account-chip {
+  text-decoration: none;
+  cursor: pointer;
+}
+.chip-login {
+  margin-left: 2px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.account-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.account-card h2 {
+  margin: 0;
+}
+.account-card p {
+  margin: 0;
+}
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 420px;
+}
+.account-form .btn {
+  align-self: flex-start;
+  min-height: 46px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.field-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.pw-row {
+  display: flex;
+  gap: 6px;
+}
+.pw-row input {
+  flex: 1;
+}
+.pw-toggle {
+  width: 46px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--panel-strong);
+  cursor: pointer;
+  font-size: 1.05rem;
+}
+.form-error {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--danger) 15%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
+  font-size: 0.9rem;
+}
+.form-note {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--gold) 14%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--gold) 40%, transparent);
+  font-size: 0.88rem;
+}
+.account-tabs {
+  max-width: 420px;
+}
+.account-who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.account-avatar {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--accent), #3a7bd5);
+  color: #fff;
+  font-weight: 800;
+  font-size: 1.2rem;
+}
+.account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+@media (max-width: 760px) {
+  .account-form,
+  .account-tabs {
+    max-width: none;
+  }
+  .account-form .btn {
+    align-self: stretch;
+  }
+  .account-actions .btn {
+    flex: 1 1 140px;
+  }
+  .chip-login {
+    display: none;
+  }
+}

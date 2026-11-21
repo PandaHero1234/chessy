@@ -16,7 +16,7 @@ export const schemas = [
     properties: {
       id: { type: "string" },
       username: { type: "string" },
-      kind: { type: "string", enum: ["guest", "bot", "board"] },
+      kind: { type: "string", enum: ["guest", "user", "bot", "board"], description: "guest = anonym, user = mit Benutzername und Passwort, bot/board = API-Zugang" },
       created_at: { type: "integer", description: "Unix-Zeit in ms" },
     },
     required: ["id", "username", "kind", "created_at"],

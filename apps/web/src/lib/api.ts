@@ -27,6 +27,13 @@ const storage = {
       /* privater Modus */
     }
   },
+  remove(k: string) {
+    try {
+      localStorage.removeItem(k);
+    } catch {
+      /* privater Modus */
+    }
+  },
 };
 
 export const getToken = () => storage.get(TOKEN_KEY);
@@ -62,12 +69,42 @@ export async function ensureAccount(): Promise<Account> {
   return r.account;
 }
 
+/** Nur in der Pages-Demo: neuer lokaler Name (dort gibt es keine Konten über mehrere Geräte). */
 export async function renameByNewGuest(username: string): Promise<Account> {
   if (STATIC) return renameLocal(username);
   const r = await request<{ account: Account; token: string }>("POST", "/auth/guest", { username }, false);
   storage.set(TOKEN_KEY, r.token);
   return r.account;
 }
+
+/**
+ * Optionales Login (nur mit Server). Das Token des Geräts wird jeweils ersetzt:
+ * Registrieren wertet den aktuellen Gast auf, Anmelden wechselt zum Konto, Abmelden startet als neuer Gast.
+ */
+export const auth = {
+  async register(username: string, password: string): Promise<Account> {
+    const r = await request<{ account: Account; token: string }>("POST", "/auth/register", { username, password });
+    storage.set(TOKEN_KEY, r.token);
+    return r.account;
+  },
+  async login(username: string, password: string): Promise<Account> {
+    const r = await request<{ account: Account; token: string }>("POST", "/auth/login", { username, password }, false);
+    storage.set(TOKEN_KEY, r.token);
+    return r.account;
+  },
+  async logout(everywhere = false): Promise<Account> {
+    try {
+      await request<{ ended: number }>("POST", "/auth/logout", { everywhere });
+    } catch (e) {
+      // Ist die Sitzung schon abgelaufen, ist das Ziel trotzdem erreicht.
+      if (!(e instanceof ApiError) || e.status !== 401) throw e;
+    }
+    storage.remove(TOKEN_KEY);
+    return ensureAccount();
+  },
+  changePassword: (oldPassword: string, newPassword: string) =>
+    request<{ ended: number }>("POST", "/auth/password", { old_password: oldPassword, new_password: newPassword }),
+};
 
 export type OpponentInput = { type: "ai"; level: number } | { type: "local" } | { type: "friend" };
 

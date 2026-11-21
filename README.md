@@ -82,6 +82,8 @@ curl -X POST localhost:3000/api/v1/games/$GAME/move/e2e4 -H "authorization: Bear
 | Methode | Pfad | Zweck |
 |---|---|---|
 | `POST` | `/api/v1/auth/{guest,bot,board}` | Account + Token |
+| `POST` | `/api/v1/auth/register` · `/auth/login` | Optionales Konto: Gast aufwerten (Fortschritt bleibt) bzw. auf weiterem Gerät anmelden |
+| `POST` | `/api/v1/auth/logout` · `/auth/password` | Abmelden (`{"everywhere": true}` für alle Geräte), Passwort ändern |
 | `GET` | `/api/v1/account` | Eigener Account |
 | `POST` | `/api/v1/games` | Partie: `opponent` = `{type:"ai",level}` · `{type:"local"}` · `{type:"friend"}` |
 | `POST` | `/api/v1/games/{id}/join` | Einladung annehmen |
@@ -135,6 +137,7 @@ npm test           # Vitest: Uhr, Regeln, REST-API, NDJSON-Stream, Lobby, Import
 npm run typecheck
 node e2e/smoke.cjs    # Playwright: Partie gegen Computer, Screenshots (Server muss laufen)
 node e2e/online.cjs   # Playwright: zwei Browser spielen online + Lobby-Paarung
+node e2e/account.cjs  # Playwright (zwei Geräte): Gast → Konto anlegen → zweites Gerät anmelden → abmelden, Passwort ändern
 node e2e/mobile.cjs   # Playwright (Touch, 3 Handygrößen, mit Prüfungen): Brett, Status und Aktionen ohne Scrollen sichtbar,
                       #   Tipp/Lösung/Weiter, Sturm, Partie, Menü, Tippziele ≥ 44 px (Standard: Pages-Build auf :4000/chessy)
 node e2e/puzzles.cjs  # Playwright: Training, Tipp, Lösung, Tagespuzzle, Sturm, Puzzles aus eigener Partie
@@ -145,6 +148,17 @@ node e2e/puzzles.cjs  # Playwright: Training, Tipp, Lösung, Tagespuzzle, Sturm,
 
 `.github/workflows/pages.yml` baut bei jedem Push auf `main` die statische Demo (`npm run build:pages`) und veröffentlicht sie.
 Einmalig nötig: *Settings → Pages → Source: GitHub Actions*.
+
+## Konten (optional)
+
+Ohne Anmeldung spielt man als Gast: Das Token liegt nur im Browser dieses Geräts. In den **Einstellungen → Konto** kann man:
+
+- **Konto anlegen:** Benutzername und Passwort wählen. Der aktuelle Gast wird zum Konto; Partien, Puzzle-Rating und Verlauf bleiben, der Name wird in alten Partien übernommen.
+- **Anmelden** auf weiteren Geräten, **abmelden** (dieses Gerät oder überall) und das **Passwort ändern** (beendet alle anderen Sitzungen).
+
+Sicherheit: Passwörter werden mit scrypt (N = 2¹⁵, eigenes Salz) gehasht, Sitzungs-Tokens nur als SHA-256-Hash gespeichert.
+Falsche Anmeldungen geben immer dieselbe Meldung und werden nach 10 Fehlversuchen in 15 Minuten (je Name und IP) kurz gesperrt.
+Die Pages-Demo hat keinen Server und deshalb keine Konten; dort bleibt der Fortschritt im Browser.
 
 ## Konfiguration
 
