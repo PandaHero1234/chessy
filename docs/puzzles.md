@@ -112,3 +112,12 @@ P=$(curl -s "localhost:3000/api/v1/puzzles/next?difficulty=medium" -H "authoriza
 curl -s -X POST localhost:3000/api/v1/puzzles/$(echo $P | jq -r .id)/check \
   -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' -d '{"moves":["e2e4"]}'
 ```
+
+## Aktueller Stand und Grenzen
+
+Die ausgelieferte Sammlung umfasst **1024 Puzzles** aus 128 Selbstspiel-Partien (98 Minuten auf 4 Kernen). Verteilung, Themen und Lösungslängen stehen in [puzzles-report.md](puzzles-report.md). Verworfen wurden 7820 Kandidaten wegen mehrdeutiger Lösung, 839 ohne greifbaren Materialgewinn und 57 in der Gegenprüfung. 1024 sehr leichte Funde fielen der Quote zum Opfer.
+
+- **Schwere Stufen sind dünn besetzt** (Schwer 9, Meister 1). Im Selbstspiel entstehen selten tiefe, eindeutige Kombinationen. Die Ratings bleiben bewusst unverändert, statt sie künstlich anzuheben.
+  - Mehr schwere Puzzles bringt ein längerer Generatorlauf; die Mattangriff-Suche liefert die meisten.
+  - Alternativ lässt sich die Lichess-Datenbank importieren, das Format ist kompatibel.
+- **Startratings sind Schätzungen.** Auf dem Server gleichen echte Lösungsversuche die Puzzle-Ratings per Elo an.
